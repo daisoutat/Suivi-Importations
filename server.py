@@ -685,6 +685,8 @@ class App(BaseHTTPRequestHandler):
         self.send_head_text(HTTPStatus.OK, data, ctype or "application/octet-stream")
 
     def handle_get(self, path, qs):
+        if path in ('', '/'):
+           path = '/index.html'
         if path.startswith("/api/"):
             parts = [p for p in path.split("/") if p]
             self.api_get(parts, qs)
@@ -921,8 +923,11 @@ class App(BaseHTTPRequestHandler):
             "(SELECT COUNT(*) FROM checklist_items c WHERE c.import_id=i.id AND c.status IN ('done','na')) AS _done, "
             "(SELECT COUNT(*) FROM checklist_items c WHERE c.import_id=i.id) AS _total "
             "FROM imports i LEFT JOIN suppliers s ON s.id=i.supplier_id "
-            "WHERE (i.deleted = 0 OR i.deleted IS NULL) AND i.eta IS NOT NULL AND i.eta <> '' AND i.eta >= ? "
-            "ORDER BY i.eta ASC",
+            "WHERE (i.deleted = 0 OR i.deleted IS NULL) "
+            "AND COALESCE(NULLIF(i.eta_dest, ''), i.eta) IS NOT NULL "
+            "AND COALESCE(NULLIF(i.eta_dest, ''), i.eta) <> '' "
+            "AND COALESCE(NULLIF(i.eta_dest, ''), i.eta) >= ? "
+            "ORDER BY COALESCE(NULLIF(i.eta_dest, ''), i.eta) ASC",
             (today,),
         ).fetchall()
         if lang == "en":
@@ -1045,7 +1050,8 @@ class App(BaseHTTPRequestHandler):
             "      OR c.task_key LIKE '%invoice%' OR c.task_key LIKE '%facture%' "
             "      OR c.task_key LIKE '%bol%')) AS open_critical "
             "FROM imports i JOIN suppliers s ON s.id=i.supplier_id "
-            "WHERE (i.deleted = 0 OR i.deleted IS NULL) ORDER BY i.eta"
+            "WHERE (i.deleted = 0 OR i.deleted IS NULL) "
+            "ORDER BY COALESCE(NULLIF(i.eta_dest, ''), i.eta)"
         )
         params = list(CRITICAL_TASK_KEYS)
         return [dict(r) for r in conn.execute(sql, params).fetchall()]
@@ -1066,6 +1072,23 @@ class App(BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             return None
         return (v - ref).days
+
+    @staticmethod
+    def arrival_ref(row):
+        """Reference d'arrivee pour TOUS les calculs de delais/retards :
+        ETA DEST (destination) par defaut, repli sur l'ETA historique des
+        fiches anciennes (aucune donnee de retard perdue)."""
+        if not row:
+            return None
+        for key in ("eta_dest", "eta", "eta_van"):
+            try:
+                v = row.get(key)
+            except (KeyError, IndexError):
+                v = None
+            v = (v or "").strip()
+            if v:
+                return v
+        return None
 
     def import_summary(self, row):
         """Resume compact d'une fiche pour les cartes et tableaux des modules."""
@@ -1102,7 +1125,7 @@ class App(BaseHTTPRequestHandler):
         total = row.get("_total") or 0
         if total > 0 and self.progress_ratio(row) >= 1.0:
             return "completed"
-        days_eta = self.day_diff(row.get("eta"), today)
+        days_eta = self.day_diff(self.arrival_ref(row), today)
         if days_eta is not None and days_eta < 0:
             return "arrived"
         if days_eta is not None and days_eta <= 7:
@@ -1131,7 +1154,7 @@ class App(BaseHTTPRequestHandler):
         rows = self.active_import_rows(conn)
         acc = {}
         for r in rows:
-            days = self.day_diff(r.get("eta"), today)
+            days = self.day_diff(self.arrival_ref(r), today)
             if days is None or days >= 0:
                 continue
             remaining = (r.get("_total") or 0) - (r.get("_done") or 0)
@@ -1144,11 +1167,11 @@ class App(BaseHTTPRequestHandler):
         estime et la liste des raisons (cles de traduction cote client)."""
         reasons = []
         score = 0
-        days_eta = self.day_diff(row.get("eta"), today)
+        days_eta = self.day_diff(self.arrival_ref(row), today)
         prog = self.progress_ratio(row)
         total = row.get("_total") or 0
 
-        if not row.get("eta"):
+        if not self.arrival_ref(row):
             score += 20
             reasons.append("missing_eta")
         if not row.get("etd"):
@@ -1242,7 +1265,7 @@ class App(BaseHTTPRequestHandler):
                 b["with_doc"] += 1
             if complete:
                 b["completed"] += 1
-            days_eta = self.day_diff(r.get("eta"), today)
+            days_eta = self.day_diff(self.arrival_ref(r), today)
             if days_eta is not None and days_eta < 0:
                 b["past_due"] += 1
                 if complete:
@@ -1281,7 +1304,9 @@ class App(BaseHTTPRequestHandler):
             "SELECT COUNT(*) AS n FROM imports WHERE deleted = 0 OR deleted IS NULL"
         ).fetchone()["n"]
         arrivals = conn.execute(
-            "SELECT COUNT(*) AS n FROM imports WHERE (deleted = 0 OR deleted IS NULL) AND eta BETWEEN ? AND ? AND eta >= ?",
+            "SELECT COUNT(*) AS n FROM imports WHERE (deleted = 0 OR deleted IS NULL) "
+            "AND COALESCE(NULLIF(eta_dest, ''), eta) BETWEEN ? AND ? "
+            "AND COALESCE(NULLIF(eta_dest, ''), eta) >= ?",
             (today, week, today),
         ).fetchone()["n"]
         total_tasks = conn.execute(

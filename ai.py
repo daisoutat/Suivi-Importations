@@ -73,6 +73,23 @@ def _days_until(iso_date):
         return None
 
 
+def _arrival_ref(row):
+    """Reference d'arrivee pour les calculs de delais/retards/phase :
+    ETA DEST (destination) en priorite, repli sur ETA historique.
+    Compatible dict et sqlite3.Row."""
+    if not row:
+        return None
+    for key in ("eta_dest", "eta", "eta_van"):
+        try:
+            v = row[key]
+        except (KeyError, IndexError):
+            v = None
+        v = (v or "").strip()
+        if v:
+            return v
+    return None
+
+
 def _get_setting(conn, key, default=None):
     row = conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
     if row is not None and row["value"] is not None:
@@ -376,10 +393,10 @@ def _build_graph(conn):
         meta = {
             "serial": i["serial"] or "", "dest": i["destination"] or "",
             "po": i["po_number"] or "", "doc": i["doc_number"] or "",
-            "eta": i["eta"] or "", "locked": i["locked"] or 0,
+            "eta": i["eta"] or "", "eta_dest": i["eta_dest"] or "", "locked": i["locked"] or 0,
             "done": done_by_imp.get(i["id"], 0), "total": total_by_imp.get(i["id"], 0),
         }
-        phase = _import_phase(i["eta"], meta["done"], meta["total"])
+        phase = _import_phase(_arrival_ref(i), meta["done"], meta["total"])
         meta["phase"] = phase
         iid = _upsert_node(conn, "import", (i["serial"] or "FI%06d" % i["id"]),
                            "i:%s" % (i["serial"] or str(i["id"])), meta)
@@ -900,7 +917,7 @@ def _import_row_dict(conn, iid):
         "dest": i["destination"] or "", "po": i["po_number"] or "",
         "doc": i["doc_number"] or "", "container": i["container"] or "",
         "bol": i["transitaire_bol"] or "", "eta": i["eta"] or "",
-        "etd": i["etd"] or "", "locked": i["locked"] or 0, "done": done, "total": total,
+        "eta_dest": i["eta_dest"] or "", "etd": i["etd"] or "", "locked": i["locked"] or 0, "done": done, "total": total,
     }
 
 
@@ -1006,7 +1023,7 @@ def assistant_notifications(conn, prefs=None, lang="fr", limit=8):
         sup = conn.execute("SELECT name FROM suppliers WHERE id=?", (i["supplier_id"],)).fetchone()
         supname = sup["name"] if sup else "—"
         serial = i["serial"] or ("FI%06d" % i["id"])
-        d = _days_until(i["eta"])
+        d = _days_until(_arrival_ref(i))
         if d is not None and d < 0 and abs(d) >= tolerance:
             if prefs.get("delays_app") is not False or prefs.get("delays_email"):
                 items.append({
@@ -1103,14 +1120,14 @@ def answer_internal(conn, query, lang, page):
         if iid:
             r = _import_row_dict(conn, iid)
             if r:
-                d = _days_until(r["eta"])
+                d = _days_until(_arrival_ref(r))
                 lines = [P["status_head"].format(ref=r["serial"], sup=r["supplier"], dest=r["dest"])]
                 if r["container"] or r["po"] or r["doc"] or r["bol"]:
                     lines.append(P["status_meta"].format(container=r["container"] or "—",
                                                          po=r["po"] or "—", doc=r["doc"] or "—", bol=r["bol"] or "—"))
                 if r["eta"]:
                     lines.append(P["status_eta"].format(eta=r["eta"], rel=_rel_text(d, lang)))
-                phase = _import_phase(r["eta"], r["done"], r["total"])
+                phase = _import_phase(_arrival_ref(r), r["done"], r["total"])
                 lines.append(P["status_phase"].format(phase=_phase_label(phase, lang)))
                 lines.append(P["status_cl"].format(done=r["done"], total=r["total"]))
                 if r["locked"]:
@@ -1184,14 +1201,14 @@ def answer_internal(conn, query, lang, page):
 
 def _status_answer_dict(r, lang, page, actions):
     P = _phrases(lang)
-    d = _days_until(r["eta"])
+    d = _days_until(_arrival_ref(r))
     lines = [P["status_head"].format(ref=r["serial"], sup=r["supplier"], dest=r["dest"])]
     if r["container"] or r["po"] or r["doc"] or r["bol"]:
         lines.append(P["status_meta"].format(container=r["container"] or "—",
                                              po=r["po"] or "—", doc=r["doc"] or "—", bol=r["bol"] or "—"))
     if r["eta"]:
         lines.append(P["status_eta"].format(eta=r["eta"], rel=_rel_text(d, lang)))
-    phase = _import_phase(r["eta"], r["done"], r["total"])
+    phase = _import_phase(_arrival_ref(r), r["done"], r["total"])
     lines.append(P["status_phase"].format(phase=_phase_label(phase, lang)))
     lines.append(P["status_cl"].format(done=r["done"], total=r["total"]))
     return {"answer": "\n".join(lines), "source": "internal",
@@ -1206,10 +1223,12 @@ def _arrivals_answer(conn, lang, page, qn):
     days = int(m.group(1)) if m else 7
     rows = conn.execute(
         "SELECT * FROM imports WHERE deleted=0 AND COALESCE(deleted,0)=0 "
-        "AND eta IS NOT NULL AND eta <> '' ORDER BY eta LIMIT 12").fetchall()
+        "AND COALESCE(NULLIF(eta_dest,''), eta) IS NOT NULL "
+        "AND COALESCE(NULLIF(eta_dest,''), eta) <> '' "
+        "ORDER BY COALESCE(NULLIF(eta_dest,''), eta) LIMIT 12").fetchall()
     up = []
     for i in rows:
-        d = _days_until(i["eta"])
+        d = _days_until(_arrival_ref(i))
         if d is not None and d >= 0 and d <= days:
             sup = conn.execute("SELECT name FROM suppliers WHERE id=?", (i["supplier_id"],)).fetchone()
             up.append({"id": i["id"], "serial": i["serial"] or "", "sup": sup["name"] if sup else "—",
@@ -1239,8 +1258,10 @@ def _overdue_answer(conn, lang, page):
         tol = 3
     over = []
     for i in conn.execute(
-            "SELECT * FROM imports WHERE deleted=0 AND COALESCE(deleted,0)=0 AND eta IS NOT NULL AND eta <> ''").fetchall():
-        d = _days_until(i["eta"])
+            "SELECT * FROM imports WHERE deleted=0 AND COALESCE(deleted,0)=0 "
+            "AND COALESCE(NULLIF(eta_dest,''), eta) IS NOT NULL "
+            "AND COALESCE(NULLIF(eta_dest,''), eta) <> ''").fetchall():
+        d = _days_until(_arrival_ref(i))
         if d is not None and d < 0 and abs(d) >= tol:
             sup = conn.execute("SELECT name FROM suppliers WHERE id=?", (i["supplier_id"],)).fetchone()
             over.append({"id": i["id"], "serial": i["serial"] or "", "sup": sup["name"] if sup else "—",
@@ -1328,8 +1349,8 @@ def _stats_answer(conn, lang, page):
     P = _phrases(lang)
     rows = conn.execute("SELECT * FROM imports WHERE deleted=0 AND COALESCE(deleted,0)=0").fetchall()
     active = len(rows)
-    soon = sum(1 for i in rows if (_days_until(i["eta"]) if i["eta"] else None) is not None and 0 <= _days_until(i["eta"]) <= 7)
-    over = sum(1 for i in rows if (_days_until(i["eta"]) if i["eta"] else None) is not None and _days_until(i["eta"]) < 0)
+    soon = sum(1 for i in rows if (_days_until(_arrival_ref(i)) if _arrival_ref(i) else None) is not None and 0 <= _days_until(_arrival_ref(i)) <= 7)
+    over = sum(1 for i in rows if (_days_until(_arrival_ref(i)) if _arrival_ref(i) else None) is not None and _days_until(_arrival_ref(i)) < 0)
     total = 0
     done = 0
     for i in rows:
@@ -1343,7 +1364,7 @@ def _stats_answer(conn, lang, page):
     for i in rows:
         t = conn.execute("SELECT COUNT(*) FROM checklist_items WHERE import_id=?", (i["id"],)).fetchone()[0]
         d = conn.execute("SELECT COUNT(*) FROM checklist_items WHERE import_id=? AND status='done'", (i["id"],)).fetchone()[0]
-        phases[_import_phase(i["eta"], d, t)] += 1
+        phases[_import_phase(_arrival_ref(i), d, t)] += 1
     payload = {"kind": "donut", "title": P.get("chart_head", "Répartition").replace("{dim}", "status"),
                "labels": list(phases.keys()), "values": [phases[k] for k in phases]}
     return {"answer": ans, "source": "internal", "citations": [],

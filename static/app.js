@@ -318,7 +318,7 @@ const I18N = {
     collapse_close: "Réduire la section",
     rates_title: "Taux de change",
     rates_unavailable: "Indisponible",
-    meco_form_title: "Fiche d'importation MECO",
+    meco_form_title: "Fiche d'importation",
     meco_tasks_title: "Suivi des tâches",
     meco_col_tache: "TÂCHES",
     meco_col_statut: "STATUT",
@@ -462,6 +462,7 @@ const I18N = {
     rte_image_prompt: "Adresse de l'image (URL) :",
     rte_table: "Insérer un tableau",
     rte_upload: "Téléverser un fichier",
+    rte_file_too_big: "Fichier trop volumineux (10 Mo max) — pièce non jointe.",
     rte_more: "Afficher / masquer la barre avancée",
     rte_align: "Aligner à gauche",
     rte_center: "Centrer",
@@ -790,7 +791,7 @@ const I18N = {
     collapse_close: "Collapse section",
     rates_title: "Exchange rates",
     rates_unavailable: "Unavailable",
-    meco_form_title: "MECO import tracking form",
+    meco_form_title: "Import tracking form",
     meco_tasks_title: "Task tracking",
     meco_col_tache: "TASKS",
     meco_col_statut: "STATUS",
@@ -927,6 +928,7 @@ const I18N = {
     rte_image_prompt: "Image address (URL):",
     rte_table: "Insert table",
     rte_upload: "Upload file",
+    rte_file_too_big: "File too large (10 MB max) — not attached.",
     rte_more: "Show / hide advanced toolbar",
     rte_align: "Align left",
     rte_center: "Align center",
@@ -1012,6 +1014,7 @@ const RATES_LIST = ["CAD", "EUR", "GBP", "CNY", "MXN"];
 
 const MECO_SUPPLIER = "MECO";
 const MECO_TASKS = [
+  { key: "meco_qc_sampling", fr: "QC-Sampling Requis", en: "QC-Sampling Required" },
   { key: "meco_verified", fr: "Vérifié et Enregistré (Dropbox/Outlook)", en: "Verified and Registered (Dropbox/Outlook)" },
   { key: "meco_update_eta_ns", fr: "Mettre à jour ETA dans NS", en: "Update ETA in NS" },
   { key: "meco_calendar", fr: "Calendrier", en: "Calendar" },
@@ -1136,6 +1139,17 @@ function daysUntil(v) {
   const now = new Date();
   const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.round((target - today) / 86400000);
+}
+
+/* Reference d'arrivee pour TOUS les calculs de delais/retards : ETA DEST par
+   defaut, repli sur ETA historique (fiches anciennes sans ETA DEST) pour ne
+   jamais perdre l'etat de retard existant. */
+function arrivalRef(row) {
+  const r = row || {};
+  const dest = String(r.eta_dest || "").trim();
+  const legacy = String(r.eta || "").trim();
+  const van = String(r.eta_van || "").trim();
+  return dest || legacy || van || null;
 }
 
 function downloadBlob(blob, name) {
@@ -1305,7 +1319,7 @@ function badge(status) {
 }
 
 function etaBadge(row) {
-  const d = daysUntil(row.eta);
+  const d = daysUntil(arrivalRef(row));
   if (d === null) return '<span class="badge na">—</span>';
   if (d < 0) return `<span class="badge progress">${esc(t("overdue"))} ${Math.abs(d)} j</span>`;
   if (d <= 7) return `<span class="badge progress">${esc(t("arrivals_soon"))} ${d} j</span>`;
@@ -2026,7 +2040,7 @@ function supplierName(id) {
 /* ---------------------------------------------------------------- dashboard */
 
 function importState(row) {
-  const d = row.eta ? daysUntil(row.eta) : null;
+  const d = arrivalRef(row) ? daysUntil(arrivalRef(row)) : null;
   const total = row._total || 0;
   const done = total > 0 ? (row._done || 0) >= total : false;
   if (d !== null && d <= 0) return done ? "delivered" : "customs";
@@ -2078,7 +2092,7 @@ function refLabel(r) {
 function buildAlerts() {
   const alerts = [];
   for (const r of state.imports) {
-    const d = daysUntil(r.eta);
+    const d = daysUntil(arrivalRef(r));
     if (d !== null && d < 0) {
       alerts.push({ level: "danger", id: r.id, msg: t("alert_overdue", { d: Math.abs(d) }) });
     } else if (!(r.doc_number || "").trim()) {
@@ -2448,6 +2462,7 @@ const INGENIOUS_VIEW_ORDER = [
   "ingenious_verified",
   "ingenious_update_eta_ns",
   "ingenious_calendar",
+  "ingenious_douanes_code_exemption",
   "ingenious_customs",
   "ingenious_packing",
   "ingenious_invoice",
@@ -2459,6 +2474,7 @@ const INGENIOUS_VIEW_TASK_INFO = {
   ingenious_verified: { fr: "Vérifié et Enregistré (Dropbox/Outlook)", en: "Verified and Registered (Dropbox/Outlook)", tip: "ingenious_verified_tip" },
   ingenious_update_eta_ns: { fr: "Mettre à jour ETA dans NS", en: "Update ETA in NS", tip: "ingenious_update_eta_ns_tip" },
   ingenious_calendar: { fr: "Ajout au calendrier", en: "Add to calendar", tip: "ingenious_view_calendar" },
+  ingenious_douanes_code_exemption: { fr: "Douanes CODE EXEMPTION", en: "Customs CODE EXEMPTION", tip: "ingenious_customs_tip" },
   ingenious_customs: { fr: "Douanes", en: "Customs", tip: "ingenious_customs_tip" },
   ingenious_packing: { fr: "Packing Slip / Entrepôt", en: "Packing Slip / Warehouse", tip: "ingenious_view_packing" },
   ingenious_invoice: { fr: "Conciliation facture commerciale", en: "Commercial invoice reconciliation", tip: "ingenious_view_reconcile" },
@@ -3696,11 +3712,11 @@ function buildMecoTasks(spec, cl) {
 function mecoTasksHTML(tasks) {
   const rows = tasks.map((tk, i) => {
     const lbl = state.lang === "fr" ? tk.fr : tk.en;
-    const sub = i === 0 ? `
+    const sub = tk.key === "meco_verified" || tk.key === "ingenious_verified" || tk.key === "navita_verified" || tk.key === "micota_verified" ? `
       <div class="meco-subrow">
-        <label class="meco-onrail"><input type="checkbox" data-k="onrail" data-tidx="0" ${tk.onRail ? "checked" : ""}> ${esc(t("meco_onrail"))}</label>
+        <label class="meco-onrail"><input type="checkbox" data-k="onrail" data-tidx="${i}" ${tk.onRail ? "checked" : ""}> ${esc(t("meco_onrail"))}</label>
         <span class="meco-fixed-label">${esc(t("meco_eta_suffix"))}</span>
-        <input class="input" data-k="etanote" data-tidx="0" value="${esc(tk.etaNote || "")}" placeholder="YYYY-MM-DD">
+        <input class="input" data-k="etanote" data-tidx="${i}" value="${esc(tk.etaNote || "")}" placeholder="YYYY-MM-DD">
       </div>` : "";
     return `<tr>
       <td class="meco-task-name">${esc(lbl)}</td>
@@ -3834,7 +3850,7 @@ function sheetFieldsHTML(def, r, tasks) {
   const f = (v) => esc(r && r[v] != null ? r[v] : "");
   const num = (v) => r && r[v] != null ? esc(r[v]) : "";
   return `
-    <div class="section-tag sec-gap">${esc(t("meco_form_title"))}</div>
+    <div class="section-tag sec-gap">${esc(t("meco_form_title"))}${def && String(def.supName || "").trim() ? " — " + esc(String(def.supName).trim()) : ""}</div>
     <div class="form-grid">
       <div class="field"><label>${esc(t("meco_destination"))}</label><input class="input" name="destination" value="${f("destination")}"></div>
       <div class="field"><label>${esc(t("meco_po_nr"))}</label><input class="input" name="po_number" value="${f("po_number")}"></div>
@@ -3846,10 +3862,11 @@ function sheetFieldsHTML(def, r, tasks) {
       <div class="field"><label>${esc(t("field_etd"))}</label><input class="input" name="etd" type="date" value="${f("etd")}"></div>
       <div class="field"><label>${esc(t("meco_eta_van"))}</label><input class="input" name="eta_van" type="date" value="${f("eta_van")}"></div>
       <div class="field"><label>${esc(t("meco_eta_dest"))}</label><input class="input" name="eta_dest" type="date" value="${f("eta_dest")}"></div>
+      ${["MECO", "INGENIOUS", "NAVITA", "MICOTA"].indexOf(String(def.supName || "").toUpperCase()) === -1 ? `
       <div class="field"><label>${esc(t("meco_qc_label"))}</label>
         <label class="meco-qc"><input type="checkbox" name="qc_sampling_qc" ${r && r.qc_sampling_qc ? "checked" : ""}> ${esc(t("meco_qc_qc"))}</label>
         <label class="meco-qc"><input type="checkbox" name="qc_sampling_reception" ${r && r.qc_sampling_reception ? "checked" : ""}> ${esc(t("meco_qc_reception"))}</label>
-      </div>
+      </div>` : ""}
     </div>
     <div class="section-tag sec-gap">${esc(t("meco_tasks_title"))}</div>
     ${mecoTasksHTML(tasks || [])}`;
@@ -4269,14 +4286,14 @@ function chatRel(d, abs) {
 }
 
 function chatUpcomingRow(r) {
-  const d = daysUntil(r.eta);
+  const d = daysUntil(arrivalRef(r));
   const rel = d === null ? "—" : d < 0 ? t("chat_rel_overdue", { d: Math.abs(d) }) : d === 0 ? t("chat_rel_today") : t("chat_rel_days", { d });
   return { msg: `${esc(refLabel(r))} — ${esc(fmtDate(r.eta))} (${rel})`, row: r };
 }
 
 function chatImportLines(rows) {
   return rows.slice(0, 3).map((r) => {
-    const d = daysUntil(r.eta);
+    const d = daysUntil(arrivalRef(r));
     const rel = d === null ? "—" : d < 0 ? t("chat_rel_overdue", { d: Math.abs(d) }) : d === 0 ? t("chat_rel_today") : t("chat_rel_days", { d });
     const ck = (r._total || 0) > 0 ? `${r._done || 0}/${r._total}` : "—";
     return t("chat_import_status", {
@@ -4331,10 +4348,10 @@ function chatbotAnswer(rawQ) {
   }
 
   if (chatHas(q, "arriv", "prochain", "next", "a venir", "upcoming", "bientot", "bientôt", "dans")) {
-    const up = imports.filter((i) => i.eta && daysUntil(i.eta) >= 0);
+    const up = imports.filter((i) => { const a = arrivalRef(i); return a && daysUntil(a) >= 0; });
     if (!up.length) return chatWidget([t("chat_arr_none")], chatDefaultChips());
     const days = chatDaysOf(q);
-    const windowed = up.filter((i) => daysUntil(i.eta) <= days);
+    const windowed = up.filter((i) => daysUntil(arrivalRef(i)) <= days);
     const list = windowed.length ? windowed : up;
     const lines = list.slice(0, 5).map((r) => chatUpcomingRow(r).msg);
     const header = windowed.length
@@ -4344,7 +4361,7 @@ function chatbotAnswer(rawQ) {
   }
 
   if (chatHas(q, "retard", "overdue", "dépassé", "depasse", "late")) {
-    const over = imports.filter((i) => i.eta && daysUntil(i.eta) < 0);
+    const over = imports.filter((i) => { const a = arrivalRef(i); return a && daysUntil(a) < 0; });
     if (!over.length) return chatWidget([t("chat_nooverdue")], chatDefaultChips());
     const lines = over.slice(0, 5).map((r) => chatUpcomingRow(r).msg);
     return chatWidget([t("chat_overdue_header", { n: over.length })].concat(lines), chatDefaultChips());
@@ -4359,8 +4376,8 @@ function chatbotAnswer(rawQ) {
 
   if (chatHas(q, "combien", "how many", "stat", "nombre", "total", "progress", "avance")) {
     const active = imports.length;
-    const soon = imports.filter((i) => i.eta && daysUntil(i.eta) >= 0 && daysUntil(i.eta) <= 7).length;
-    const over = imports.filter((i) => i.eta && daysUntil(i.eta) < 0).length;
+    const soon = imports.filter((i) => { const a = arrivalRef(i); const d = a ? daysUntil(a) : null; return d !== null && d >= 0 && d <= 7; }).length;
+    const over = imports.filter((i) => { const a = arrivalRef(i); const d = a ? daysUntil(a) : null; return d !== null && d < 0; }).length;
     const total = imports.reduce((s, i) => s + (i._total || 0), 0);
     const done = imports.reduce((s, i) => s + (i._done || 0), 0);
     const pct = total ? Math.round((done / total) * 100) : 0;
@@ -4652,9 +4669,9 @@ function createRichTextEditor(container, opts) {
       <button type="button" class="rte-btn" data-rte="fullscreen" title="${T("rte_fullscreen")}" aria-label="${T("rte_fullscreen")}">${rteIconFullscreen()}</button>
       <button type="button" class="rte-btn" data-rte="source" title="${T("rte_source")}" aria-label="${T("rte_source")}">${rteIconSource()}</button>
     </div>
-    <div class="rte-editor rte-empty" data-rte="editor" contenteditable="true" spellcheck="true" data-placeholder="${esc(opts.placeholder || T("rte_placeholder"))}"></div>
+    <div class="rte-editor rte-empty" data-rte="editor" contenteditable="true" spellcheck="true" autocorrect="on" data-placeholder="${esc(opts.placeholder || T("rte_placeholder"))}"></div>
     <textarea class="rte-source-edit" data-rte="srcarea" spellcheck="false" hidden></textarea>
-    <input type="file" class="rte-file" data-rte="file" accept=".png,.jpg,.jpeg,.gif,.webp,.bmp,.svg,.pdf,.doc,.docx,.xls,.xlsx,.txt" hidden>
+    <input type="file" class="rte-file" data-rte="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.md,.markdown,.json,.eml,.log,.html,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg,.tif,.tiff" hidden>
     ${opts.name ? '<input type="hidden" data-rte="hidden" name="' + esc(opts.name) + '">' : ""}
   `;
   if (container) {
@@ -4815,17 +4832,23 @@ function createRichTextEditor(container, opts) {
   });
 
   fileInput.addEventListener("change", () => {
-    const f = fileInput.files && fileInput.files[0];
-    if (!f) return;
-    if (f.type && f.type.indexOf("image/") === 0) {
-      const rd = new FileReader();
-      rd.onload = () => { run("insertImage", rd.result); };
-      rd.readAsDataURL(f);
-    } else {
-      const url = URL.createObjectURL(f);
-      run("insertHTML", '<a href="' + url + '" target="_blank" rel="noopener">' + esc(f.name) + "</a>");
-    }
+    const files = Array.prototype.slice.call(fileInput.files || []);
+    if (!files.length) return;
     fileInput.value = "";
+    files.forEach(function (f) {
+      if (f.size > 10 * 1024 * 1024) {
+        toast(T("rte_file_too_big"));
+        return;
+      }
+      const rd = new FileReader();
+      if (f.type && f.type.indexOf("image/") === 0) {
+        rd.onload = () => { run("insertImage", rd.result); };
+      } else {
+        rd.onload = () => { run("insertHTML", '<a href="' + rd.result + '" target="_blank" rel="noopener">' + esc(f.name) + "</a>"); };
+      }
+      rd.onerror = () => { toast(T("rte_file_too_big")); };
+      rd.readAsDataURL(f);
+    });
   });
 
   function instKeepUp() { inst._update(); }
@@ -4902,10 +4925,20 @@ function pruneRTEInstances() {
   }
 }
 
+function enhanceTextInputs(root) {
+  const host = root || document;
+  const els = host.querySelectorAll('textarea, input:not([type]), input[type="text"], input[type="search"], [contenteditable="true"]');
+  Array.prototype.forEach.call(els, (el) => {
+    if (el.hasAttribute("spellcheck")) return;
+    el.setAttribute("spellcheck", "true");
+    el.setAttribute("autocorrect", "on");
+  });
+}
+
 function initRTEAutoUpgrade() {
   if (RTE._obs) return;
-  if (document.body) upgradeRTEFields();
-  const obs = new MutationObserver(() => { pruneRTEInstances(); upgradeRTEFields(); });
+  if (document.body) { upgradeRTEFields(); enhanceTextInputs(document.body); }
+  const obs = new MutationObserver(() => { pruneRTEInstances(); upgradeRTEFields(); enhanceTextInputs(document.body); });
   obs.observe(document.body || document.documentElement, { childList: true, subtree: true });
   RTE._obs = obs;
   console.log("[rte] composant global pret : window.RTE (2 barres d'outils, i18n FR/EN, mode source)");
@@ -4928,7 +4961,7 @@ function initChatbot() {
       </div>
       <div id="chat-body" class="chat-body"></div>
       <form id="chat-form" class="chat-form">
-        <input id="chat-input" class="input" autocomplete="off" spellcheck="false" placeholder="${esc(t("chat_placeholder"))}">
+        <input id="chat-input" class="input" autocomplete="off" spellcheck="true" autocorrect="on" placeholder="${esc(t("chat_placeholder"))}">
         <button type="submit" class="chat-send" aria-label="${esc(t("chat_send"))}">➤</button>
       </form>
     </div>

@@ -1,0 +1,16 @@
+{
+  "name": "suivi-backup",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sauvegarde quotidienne MongoDB -> CSV (en memoire) -> e-mail (nodemailer). Module portable, sans ecriture disque.",
+  "main": "backup.service.js",
+  "scripts": {
+    "backup:now": "node backup.service.js --now",
+    "backup:dry": "node backup.service.js --dry",
+    "backup:start": "node backup.service.js",
+    "deps": "npm install --save node-cron nodemailer mongodb fast-csv"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

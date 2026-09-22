@@ -18,6 +18,51 @@ const I18N = {
     nav_dashboard: "Tableau de bord",
     nav_suppliers: "Fournisseurs",
     nav_imports: "Importations",
+    nav_backup: "Sauvegarde",
+    nav_reconcile: "Réconciliation",
+    mod_reconcile_title: "Réconciliation facture / commande",
+    module_sub_reconcile: "Comparez une facture fournisseur à son bon de commande (Excel) et détectez automatiquement les écarts de code, quantité et prix.",
+    rec_invoice_label: "Facture fournisseur",
+    rec_po_label: "Bon de commande",
+    rec_upload_hint: "Fichiers Excel (.xlsx) ou CSV — colonnes : Code article, Description, Quantité, Prix unitaire",
+    rec_btn: "Comparer les fichiers",
+    rec_running: "Analyse en cours…",
+    rec_need_both: "Sélectionnez la facture ET le bon de commande.",
+    rec_done_toast: "Rapprochement terminé : {n} ligne(s) en écart.",
+    rec_error: "Échec du rapprochement.",
+    rec_err_xls: "Le format .xls n'est pas pris en charge — réexportez en .xlsx ou .csv.",
+    rec_err_columns: "En-têtes introuvables. Colonnes requises : Item Code, Description, Quantity, Unit Price.",
+    rec_err_files: "Fichiers requis : facture + bon de commande.",
+    rec_err_rows: "Fichier trop volumineux (max 5000 lignes par fichier).",
+    rec_err_internal: "Erreur interne pendant l'analyse.",
+    rec_total: "Total des lignes comparées",
+    rec_stats_inv: "Lignes facture",
+    rec_stats_po: "Lignes commande",
+    rec_stats_ok: "Lignes correctes (oui)",
+    rec_stats_bad: "Lignes erronées (neuf)",
+    rec_rate: "Taux de conformité",
+    rec_section_ok: "Lignes correctes",
+    rec_section_bad: "Lignes erronées",
+    rec_section_pivot: "Synthèse par code article (tableau croisé)",
+    rec_history: "Historique",
+    rec_history_none: "Aucun rapprochement enregistré.",
+    rec_col_code: "Code article",
+    rec_col_desc: "Description",
+    rec_col_qty: "Quantité",
+    rec_col_price: "Prix unitaire",
+    rec_col_status: "Statut",
+    rec_col_reason: "Motif",
+    rec_col_diff: "Écart",
+    rec_col_amount: "Montant",
+    rec_vs: "Facture → Commande",
+    rec_file_title: "Fichiers à comparer",
+    rec_reason_code: "Code absent du bon de commande",
+    rec_reason_match: "Plus de ligne commande restante",
+    rec_reason_extra: "Ligne commande sans facture",
+    rec_reason_qty: "Quantité différente",
+    rec_reason_price: "Prix différent",
+    rec_reason_description: "Description différente",
+    rec_reason_missing: "Valeur manquante",
     nav_settings: "Paramètres",
     nav_trash: "Corbeille",
     trash_title: "Corbeille",
@@ -431,6 +476,22 @@ const I18N = {
     data_restore_self: "Seuls les administrateurs peuvent sauvegarder ou restaurer les données.",
     data_file_required: "Veuillez sélectionner un fichier .zip ou .db.",
     backup_file_name: "sauvegarde_radisson.zip",
+    backup_title: "Sauvegarde automatique",
+    backup_hint: "Exporte la base de données selon un planificateur quotidien et l'envoie par courriel si un compte SMTP est configuré.",
+    backup_download_now: "Télécharger l'archive ZIP",
+    backup_run_now: "Générer et envoyer maintenant",
+    backup_running: "Génération en cours…",
+    backup_done: "Sauvegarde générée et envoyée.",
+    backup_done_local: "Sauvegarde générée (courriel non configuré).",
+    backup_schedule: "Planificateur",
+    backup_next: "Prochaine exécution",
+    backup_last: "Dernière exécution",
+    backup_never: "jamais",
+    backup_last_file: "Fichier",
+    backup_email_cfg: "Courriel",
+    backup_email_on: "Configuré",
+    backup_email_off: "Non configuré — stockage local uniquement",
+    backup_recipient: "Destinataire",
     sec_import_cfg: "Paramètres des importations",
     imp_title: "Gestion des importations",
     imp_incoterm: "Incoterm par défaut",
@@ -489,6 +550,51 @@ const I18N = {
     nav_dashboard: "Dashboard",
     nav_suppliers: "Suppliers",
     nav_imports: "Imports",
+    nav_backup: "Backup",
+    nav_reconcile: "Reconciliation",
+    mod_reconcile_title: "Invoice / PO reconciliation",
+    module_sub_reconcile: "Compare a supplier invoice to its purchase order (Excel) and automatically detect item code, quantity and price discrepancies.",
+    rec_invoice_label: "Supplier invoice",
+    rec_po_label: "Purchase order",
+    rec_upload_hint: "Excel (.xlsx) or CSV files — columns: Item Code, Description, Quantity, Unit Price",
+    rec_btn: "Compare files",
+    rec_running: "Analysing…",
+    rec_need_both: "Please select both the invoice AND the purchase order.",
+    rec_done_toast: "Reconciliation complete: {n} line(s) in discrepancy.",
+    rec_error: "Reconciliation failed.",
+    rec_err_xls: "Legacy .xls is not supported — please re-export as .xlsx or .csv.",
+    rec_err_columns: "Headers not found. Required columns: Item Code, Description, Quantity, Unit Price.",
+    rec_err_files: "Required files: invoice + purchase order.",
+    rec_err_rows: "File too large (max 5000 lines per file).",
+    rec_err_internal: "Internal error while analysing.",
+    rec_total: "Total lines compared",
+    rec_stats_inv: "Invoice lines",
+    rec_stats_po: "PO lines",
+    rec_stats_ok: "Correct lines (oui)",
+    rec_stats_bad: "Faulty lines (neuf)",
+    rec_rate: "Compliance rate",
+    rec_section_ok: "Correct lines",
+    rec_section_bad: "Faulty lines",
+    rec_section_pivot: "Per-item synthesis (pivot)",
+    rec_history: "History",
+    rec_history_none: "No reconciliation recorded yet.",
+    rec_col_code: "Item Code",
+    rec_col_desc: "Description",
+    rec_col_qty: "Quantity",
+    rec_col_price: "Unit Price",
+    rec_col_status: "Status",
+    rec_col_reason: "Reason",
+    rec_col_diff: "Variance",
+    rec_col_amount: "Amount",
+    rec_vs: "Invoice → PO",
+    rec_file_title: "Files to compare",
+    rec_reason_code: "Code missing in purchase order",
+    rec_reason_match: "No remaining PO line",
+    rec_reason_extra: "PO line without invoice",
+    rec_reason_qty: "Different quantity",
+    rec_reason_price: "Different price",
+    rec_reason_description: "Different description",
+    rec_reason_missing: "Missing value",
     nav_settings: "Settings",
     nav_trash: "Trash",
     trash_title: "Trash",
@@ -897,6 +1003,22 @@ const I18N = {
     data_restore_self: "Only administrators can back up or restore data.",
     data_file_required: "Please select a .zip or .db file.",
     backup_file_name: "radisson_backup.zip",
+    backup_title: "Automatic backup",
+    backup_hint: "Exports the database on a daily schedule and emails it whenever a SMTP account is configured.",
+    backup_download_now: "Download ZIP archive",
+    backup_run_now: "Generate and email now",
+    backup_running: "Generating…",
+    backup_done: "Backup generated and emailed.",
+    backup_done_local: "Backup generated (email not configured).",
+    backup_schedule: "Schedule",
+    backup_next: "Next run",
+    backup_last: "Last run",
+    backup_never: "never",
+    backup_last_file: "File",
+    backup_email_cfg: "Email",
+    backup_email_on: "Configured",
+    backup_email_off: "Not configured — local storage only",
+    backup_recipient: "Recipient",
     sec_import_cfg: "Import settings",
     imp_title: "Import management",
     imp_incoterm: "Default incoterm",
@@ -1263,6 +1385,8 @@ function sidebarItems() {
     ["kanban", t("nav_kanban"), "🗂", "nav"],
     ["prediction", t("nav_prediction"), "⏱", "nav"],
     ["analytics", t("nav_analytics"), "📊", "nav"],
+    ["backup", t("nav_backup"), "💾", "backup-open"],
+    ["reconcile", t("nav_reconcile"), "⚖️", "nav"],
     ["trash", t("nav_trash"), "🗑", "nav"],
     ["settings", t("nav_settings"), "⚙", "nav"],
   ];
@@ -1275,6 +1399,10 @@ function sidebarItems() {
       }
       if (act === "new-import-global") {
         return `<button class="nav-item" data-act="new-import-global" title="${esc(t("new_card"))}">
+      <span class="ico">${ico}</span><span>${esc(lbl)}</span></button>`;
+      }
+      if (act === "backup-open") {
+        return `<button class="nav-item" data-act="backup-open" data-nav="${k}" title="${esc(t("backup_title"))}">
       <span class="ico">${ico}</span><span>${esc(lbl)}</span></button>`;
       }
       return `<button class="nav-item" data-act="supplier-new" data-sup="${esc(k)}" title="${esc(t("new_card"))}">
@@ -1860,6 +1988,244 @@ async function renderAnalytics() {
 
 /* ---------------------------------------------------------------- router */
 
+/* --- Reconciliation facture / bon de commande --- */
+function recNum(v) {
+  if (v == null) return "—";
+  return v.toLocaleString(state.lang === "fr" ? "fr-CA" : "en-CA", {
+    maximumFractionDigits: 4,
+  });
+}
+
+function recMoney(v) {
+  if (v == null) return "—";
+  return v.toLocaleString(state.lang === "fr" ? "fr-CA" : "en-CA", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  });
+}
+
+function recSigned(v) {
+  if (v == null) return "—";
+  return (v > 0 ? "+" : "") + recMoney(v);
+}
+
+function recDiffHTML(r) {
+  const parts = [];
+  if (r.diff_qty != null) parts.push("Q " + (r.diff_qty > 0 ? "+" : "") + recNum(r.diff_qty));
+  if (r.diff_price != null) parts.push("P " + (r.diff_price > 0 ? "+" : "") + recMoney(r.diff_price));
+  return parts.join(" · ") || "—";
+}
+
+function recPaired(inv, po) {
+  const a = inv == null ? "—" : recNum(inv);
+  const b = po == null ? "—" : recNum(po);
+  return `${a}<i class="rec-arrow">→</i>${b}`;
+}
+
+function recPairedMoney(inv, po) {
+  const a = inv == null ? "—" : recMoney(inv);
+  const b = po == null ? "—" : recMoney(po);
+  return `${a}<i class="rec-arrow">→</i>${b}`;
+}
+
+function recRowHTML(r) {
+  const badge = r.status === "oui"
+    ? `<span class="rec-badge oui">oui</span>`
+    : `<span class="rec-badge neuf">neuf</span>`;
+  const reason = r.reason
+    ? `<span class="reason-chip rec-reason">${esc(t("rec_reason_" + r.reason))}</span>`
+    : "—";
+  return `<tr class="rec-row-${r.status}">
+    <td class="num-md">${esc(r.code || "—")}</td>
+    <td>${esc(r.inv_desc || r.po_desc || "—")}</td>
+    <td class="num-md">${recPaired(r.inv_qty, r.po_qty)}</td>
+    <td class="num-md">${recPairedMoney(r.inv_price, r.po_price)}</td>
+    <td>${badge}</td>
+    <td>${reason}</td>
+    <td class="num-md">${recDiffHTML(r)}</td>
+  </tr>`;
+}
+
+function reconcileForm() {
+  return `<div class="panel">
+    <h3 class="panel-title">${esc(t("rec_file_title"))}</h3>
+    <form id="rec-form" class="rec-form">
+      <div class="rec-fields">
+        <div class="rec-field">
+          <label for="rec-invoice">${esc(t("rec_invoice_label"))}</label>
+          <input type="file" id="rec-invoice" accept=".xlsx,.xls,.csv">
+        </div>
+        <div class="rec-field">
+          <label for="rec-po">${esc(t("rec_po_label"))}</label>
+          <input type="file" id="rec-po" accept=".xlsx,.xls,.csv">
+        </div>
+      </div>
+      <p class="rec-hint">${esc(t("rec_upload_hint"))}</p>
+      <button type="button" class="btn" id="rec-go" data-act="rec-go">⚖️ ${esc(t("rec_btn"))}</button>
+    </form>
+  </div>`;
+}
+
+function recStatusCard(n, lbl, cls) {
+  return `<div class="stat-card ${cls}"><div class="num">${n}</div><div class="lbl">${esc(lbl)}</div></div>`;
+}
+
+function reconcileReport(res) {
+  const stats = res.stats || {};
+  const cards = `<div class="stat-grid">
+    ${recStatusCard(stats.invoice_lines || 0, t("rec_stats_inv"), "")}
+    ${recStatusCard(stats.po_lines || 0, t("rec_stats_po"), "")}
+    ${recStatusCard(stats.oui || 0, t("rec_stats_ok"), "ouicard")}
+    ${recStatusCard(stats.neuf || 0, t("rec_stats_bad"), "neufcard")}
+    ${recStatusCard((stats.rate != null ? stats.rate : 0) + "%", t("rec_rate"), "")}
+  </div>`;
+  const okRows = (res.rows || []).filter((r) => r.status === "oui");
+  const badRows = (res.rows || []).filter((r) => r.status !== "oui");
+  const okBody = okRows.length
+    ? okRows.map(recRowHTML).join("")
+    : `<tr><td colspan="7" class="empty">${esc(t("module_empty"))}</td></tr>`;
+  const badBody = badRows.length
+    ? badRows.map(recRowHTML).join("")
+    : `<tr><td colspan="7" class="empty">${esc(t("module_empty"))}</td></tr>`;
+  const th = `<th>${esc(t("rec_col_code"))}</th><th>${esc(t("rec_col_desc"))}</th>
+    <th>${esc(t("rec_col_qty"))}</th><th>${esc(t("rec_col_price"))}</th>
+    <th>${esc(t("rec_col_status"))}</th><th>${esc(t("rec_col_reason"))}</th><th>${esc(t("rec_col_diff"))}</th>`;
+  let pivot = "";
+  if ((res.pivot || []).length) {
+    const pv = res.pivot.map((p) => `<tr class="rec-row-${p.status}">
+      <td class="num-md">${esc(p.code)}</td>
+      <td class="num-md">${recPaired(p.inv_qty, p.po_qty)}</td>
+      <td class="num-md">${recPairedMoney(p.inv_amount, p.po_amount)}</td>
+      <td>${p.status === "oui" ? `<span class="rec-badge oui">oui</span>` : `<span class="rec-badge neuf">neuf</span>`}</td>
+    </tr>`).join("");
+    pivot = `<div class="panel rec-pivot">
+      <h3 class="panel-title">${esc(t("rec_section_pivot"))}</h3>
+      <div class="table-wrap fluid"><table class="tbl module-table">
+        <thead><tr><th>${esc(t("rec_col_code"))}</th>
+          <th>${esc(t("rec_col_qty"))} <span class="rec-vs">(${esc(t("rec_vs"))})</span></th>
+          <th>${esc(t("rec_col_amount"))} <span class="rec-vs">(${esc(t("rec_vs"))})</span></th>
+          <th>${esc(t("rec_col_status"))}</th></tr></thead>
+        <tbody>${pv}</tbody>
+      </table></div>
+    </div>`;
+  }
+  return `<div class="rec-report">
+    <div class="panel">${cards}</div>
+    <div class="panel">
+      <h3 class="panel-title">${esc(t("rec_section_ok"))} <span class="rec-count ok">${okRows.length}</span></h3>
+      <div class="table-wrap fluid"><table class="tbl module-table">
+        <thead><tr>${th}</tr></thead><tbody>${okBody}</tbody>
+      </table></div>
+    </div>
+    <div class="panel">
+      <h3 class="panel-title">${esc(t("rec_section_bad"))} <span class="rec-count bad">${badRows.length}</span></h3>
+      <div class="table-wrap fluid"><table class="tbl module-table">
+        <thead><tr>${th}</tr></thead><tbody>${badBody}</tbody>
+      </table></div>
+    </div>
+    ${pivot}
+  </div>`;
+}
+
+async function reconcileHistory() {
+  let runs = [];
+  try {
+    const data = await api("/api/reconcile/runs");
+    runs = data.runs || [];
+  } catch (e) { /* historique non critique */ }
+  if (!runs.length) {
+    return `<div class="panel"><h3 class="panel-title">${esc(t("rec_history"))}</h3>
+      <div class="empty">${esc(t("rec_history_none"))}</div></div>`;
+  }
+  const rows = runs.map((r) => {
+    const s = r.stats || {};
+    return `<tr>
+      <td>${esc(r.invoice_file || "")}</td>
+      <td>${esc(r.po_file || "")}</td>
+      <td class="num-md">${s.oui || 0} / ${s.neuf || 0}</td>
+      <td>${esc((s.rate != null ? s.rate : 0) + "%")}</td>
+      <td>${esc(fmtDateTime(r.created_at))}</td>
+      <td><button type="button" class="btn small ghost" data-act="rec-history" data-id="${r.id}">${esc(t("rec_rerun"))}</button></td>
+    </tr>`;
+  }).join("");
+  return `<div class="panel"><h3 class="panel-title">${esc(t("rec_history"))}</h3>
+    <div class="table-wrap fluid"><table class="tbl module-table">
+      <thead><tr><th>${esc(t("rec_invoice_label"))}</th><th>${esc(t("rec_po_label"))}</th>
+        <th>${esc(t("rec_stats_ok"))} / ${esc(t("rec_stats_bad"))}</th><th>${esc(t("rec_rate"))}</th>
+        <th>${esc(t("col_created"))}</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
+}
+
+async function runReconcile() {
+  const inv = document.getElementById("rec-invoice");
+  const po = document.getElementById("rec-po");
+  if (!inv || !po || !inv.files || !inv.files[0] || !po.files || !po.files[0]) {
+    toast(t("rec_need_both"));
+    return;
+  }
+  const fd = new FormData();
+  fd.append("invoice", inv.files[0]);
+  fd.append("po", po.files[0]);
+  const btn = document.getElementById("rec-go");
+  if (btn) { btn.disabled = true; btn.textContent = t("rec_running"); }
+  try {
+    const res = await fetch("/api/reconcile", { method: "POST", body: fd });
+    let data = null;
+    try { data = await res.json(); } catch (e) { /* corps vide */ }
+    if (res.status === 401) {
+      state.authed = false;
+      location.hash = "#/login";
+      render();
+      return;
+    }
+    if (!res.ok) {
+      const map = {
+        xls: "rec_err_xls", columns: "rec_err_columns", files: "rec_err_files",
+        big: "rec_err_rows", internal: "rec_err_internal",
+      };
+      toast(data && map[data.code] ? t(map[data.code]) : t("rec_error"));
+      return;
+    }
+    state.reconcileLast = data;
+    await renderReconcile();
+    toast(t("rec_done_toast", { n: data.stats.neuf }));
+  } catch (e) {
+    toast(e.message || t("rec_error"));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = t("rec_btn"); }
+  }
+}
+
+async function openReconcileRun(id) {
+  try {
+    const item = await api("/api/reconcile/runs/" + id);
+    if (item && item.result) state.reconcileLast = item.result;
+    await renderReconcile();
+  } catch (e) {
+    toast(e.message || t("rec_error"));
+  }
+}
+
+async function renderReconcile() {
+  const inner = moduleHeader(
+    "mod_reconcile_title", "module_sub_reconcile",
+    state.reconcileLast ? state.reconcileLast.generated_at : null
+  ) + reconcileForm()
+    + (state.reconcileLast ? reconcileReport(state.reconcileLast) : "")
+    + await reconcileHistory();
+  document.getElementById("app").innerHTML = shell(t("nav_reconcile"), inner);
+  moduleRefreshFn = renderReconcile;
+  const goBtn = document.getElementById("rec-go");
+  if (goBtn) goBtn.addEventListener("click", () => { runReconcile(); });
+  document.querySelectorAll('[data-act="rec-history"]').forEach((b) => {
+    b.addEventListener("click", () => { openReconcileRun(b.dataset.id); });
+  });
+}
+
+/* ---------------------------------------------------------------- router */
+
 let booted = false;
 
 window.addEventListener("hashchange", () => { if (booted) render(); });
@@ -1885,6 +2251,7 @@ async function render() {
   if (page === "kanban") return renderKanban();
   if (page === "prediction") return renderPrediction();
   if (page === "analytics") return renderAnalytics();
+  if (page === "reconcile") return renderReconcile();
   go("#/dashboard");
 }
 
@@ -3506,6 +3873,92 @@ async function renderSettings() {
 
 /* ---------------------------------------------------------------- import modal + checklist */
 
+async function openBackupModal() {
+  const m = openModal(`
+    <div class="modal-h"><span class="modal-h-title">${esc(t("backup_title"))}</span>
+      <button type="button" class="icon-btn" data-act="close-modal">✕</button></div>
+    <div class="modal-b">
+      <div class="muted" style="margin:0 0 14px">${esc(t("backup_hint"))}</div>
+      <div id="bk-status">${esc(t("backup_running"))}</div>
+    </div>
+    <div class="modal-f">
+      <span class="bk-autohint" style="margin-right:auto;align-self:center"></span>
+      <button type="button" class="btn ghost" data-act="close-modal">${esc(t("cancel"))}</button>
+      <button type="button" class="btn" id="bk-download">⬇ ${esc(t("backup_download_now"))}</button>
+      <button type="button" class="btn" id="bk-run">📤 ${esc(t("backup_run_now"))}</button>
+    </div>`);
+  const statusEl = m.querySelector("#bk-status");
+  const hintEl = m.querySelector(".bk-autohint");
+  const dlBtn = m.querySelector("#bk-download");
+  const runBtn = m.querySelector("#bk-run");
+  const busy = (busyBtn, busyOn) => {
+    busyBtn.disabled = busyOn;
+    dlBtn.disabled = busyOn;
+    runBtn.disabled = busyOn;
+    if (busyOn) hintEl.innerHTML = `<span class="bk-spin"></span> ${esc(t("backup_running"))}`;
+    else hintEl.textContent = "";
+  };
+  const loadStatus = async () => {
+    try {
+      const st = await api("/api/backup/status");
+      renderBackupStatus(statusEl, st);
+    } catch (e) {
+      statusEl.innerHTML = `<div class="alert err">${esc(e.message)}</div>`;
+    }
+  };
+  dlBtn.addEventListener("click", async () => {
+    if (!state.user || state.user.role !== "admin") { toast(t("data_restore_self")); return; }
+    busy(dlBtn, true);
+    try {
+      const res = await fetch("/api/backup");
+      if (res.status === 401) { state.authed = false; location.hash = "#/login"; render(); return; }
+      if (!res.ok) { const d = await res.json().catch(() => null); throw new Error((d && d.error) || res.statusText || "backup failed"); }
+      const blob = await res.blob();
+      const cd = res.headers.get("Content-Disposition") || "";
+      const mm = cd.match(/filename="?([^;]+)"?/i);
+      downloadBlob(blob, mm ? mm[1].trim() : t("backup_file_name"));
+      toast(t("save_ok"));
+    } catch (e) {
+      toast(t("save_err", { msg: e.message }));
+    }
+    busy(dlBtn, false);
+    await loadStatus();
+  });
+  runBtn.addEventListener("click", async () => {
+    if (!state.user || state.user.role !== "admin") { toast(t("data_restore_self")); return; }
+    busy(runBtn, true);
+    statusEl.innerHTML = `<span class="bk-spin"></span> ${esc(t("backup_running"))}`;
+    try {
+      const res = await api("/api/backup/now", "POST", {});
+      if (res.ok) toast(res.emailed ? t("backup_done") : t("backup_done_local"));
+      else toast(t("save_err", { msg: (res && res.error) || "backup failed" }));
+      await loadStatus();
+    } catch (e) {
+      statusEl.innerHTML = `<div class="alert err">${esc(e.message)}</div>`;
+    }
+    busy(runBtn, false);
+  });
+  await loadStatus();
+}
+
+function renderBackupStatus(el, s) {
+  const emailTxt = s.email_configured
+    ? `${esc(t("backup_email_on"))} · ${esc(s.recipient || "")}`
+    : esc(t("backup_email_off"));
+  const lastTxt = s.last_run
+    ? `${esc(String(s.last_run).replace("T", " "))}${s.last_file ? " · " + esc(s.last_file) : ""}` +
+      (s.last_emailed === false && s.last_email_note ? " · " + esc(s.last_email_note) : "")
+    : esc(t("backup_never"));
+  const nextRows = s.last_rows != null
+    ? ` · ${esc(String(s.last_rows))} ${s.last_tables != null ? s.last_tables : ""}` : "";
+  el.innerHTML = `<div class="bk-status-grid">
+      <div><span class="bk-k">${esc(t("backup_schedule"))}</span><span class="bk-v">${esc(String(s.schedule || ""))}</span></div>
+      <div><span class="bk-k">${esc(t("backup_next"))}</span><span class="bk-v">${s.next_run ? esc(String(s.next_run).replace("T", " ")) + nextRows : esc(t("backup_never"))}</span></div>
+      <div><span class="bk-k">${esc(t("backup_last"))}</span><span class="bk-v">${lastTxt}</span></div>
+      <div><span class="bk-k">${esc(t("backup_email_cfg"))}</span><span class="bk-v">${emailTxt}</span></div>
+    </div>`;
+}
+
 async function openImportModal(row) {
   const isNew = !row || !row.id;
   await ensureTemplate();
@@ -3586,30 +4039,8 @@ async function openImportModal(row) {
   if (printBtn) printBtn.addEventListener("click", () => window.print());
 
   m.querySelector('[data-act="save-card"]').addEventListener("click", async () => {
-    const form = m.querySelector("#card-form");
-    const fd = new FormData(form);
-    const payload = {};
-    for (const [k, v] of fd.entries()) payload[k] = v;
-    payload.add_info = JSON.stringify(state.addInfo || []);
-    if (state.mecoMode) {
-      payload.eta = payload.eta_van || payload.eta_dest || "";
-      payload.qc_sampling_qc = payload.qc_sampling_qc ? 1 : 0;
-      payload.qc_sampling_reception = payload.qc_sampling_reception ? 1 : 0;
-    }
+    const { payload, items: pendingItems } = buildCardPayload(m);
     if (!payload.supplier_id) return toast(t("required"));
-    if (payload.pallets === "") payload.pallets = null;
-    else payload.pallets = Number(payload.pallets);
-    const pendingItems = state.mecoMode
-      ? mecoChecklistItems()
-      : (state.clChecklist || []).map((it) => ({
-          task_key: it.task_key || "",
-          task_label_fr: it.task_label_fr || "",
-          task_label_en: it.task_label_en || "",
-          status: it.status,
-          notes: it.notes || "",
-          link: it.link || "",
-          position: it.position,
-        }));
     try {
       let created = null;
       if (isNew) {
@@ -3666,6 +4097,8 @@ async function openImportModal(row) {
       toast(t("save_err", { msg: e.message }));
     }
   });
+
+  setupAutosaveImport(m, r);
 
   const delBtn = m.querySelector('[data-act="delete-card"]');
   if (delBtn) delBtn.addEventListener("click", async () => {
@@ -4076,6 +4509,99 @@ function renderChecklistBody(m) {
 }
 
 /* ---------------------------------------------------------------- attachments */
+
+function buildCardPayload(m) {
+  const form = m.querySelector("#card-form");
+  const fd = new FormData(form);
+  const payload = {};
+  for (const [k, v] of fd.entries()) payload[k] = v;
+  payload.add_info = JSON.stringify(state.addInfo || []);
+  if (state.mecoMode) {
+    payload.eta = payload.eta_van || payload.eta_dest || "";
+    payload.qc_sampling_qc = payload.qc_sampling_qc ? 1 : 0;
+    payload.qc_sampling_reception = payload.qc_sampling_reception ? 1 : 0;
+  }
+  if (payload.pallets === "") payload.pallets = null;
+  else payload.pallets = Number(payload.pallets);
+  const items = state.mecoMode
+    ? mecoChecklistItems()
+    : (state.clChecklist || []).map((it) => ({
+        task_key: it.task_key || "",
+        task_label_fr: it.task_label_fr || "",
+        task_label_en: it.task_label_en || "",
+        status: it.status,
+        notes: it.notes || "",
+        link: it.link || "",
+        position: it.position,
+      }));
+  return { payload, items };
+}
+
+function setupAutosaveImport(m, r) {
+  // Sauvegarde instantanee (debounce 1,2 s) uniquement en mode edition :
+  // la creation ("Nouveau") reste soumise au bouton Enregistrer explicite.
+  const id = r && r.id;
+  const form = m.querySelector("#card-form");
+  if (!id || !form) return;
+  let timer = null;
+  let inFlight = false;
+  let pending = false;
+  const footer = m.querySelector(".modal-f");
+  let hint = footer ? footer.querySelector(".bk-autohint") : null;
+  if (!hint && footer) {
+    hint = document.createElement("span");
+    hint.className = "bk-autohint";
+    hint.style.marginRight = "auto";
+    hint.style.alignSelf = "center";
+    footer.insertBefore(hint, footer.firstChild);
+  }
+  const flash = () => {
+    if (!hint) return;
+    hint.innerHTML = "💾";
+    hint.style.opacity = "1";
+    setTimeout(() => { if (hint && hint.style.opacity) hint.style.opacity = "0"; }, 700);
+  };
+  const fire = async () => {
+    if (inFlight) { pending = true; return; }
+    if (!document.contains(form)) { if (timer) clearTimeout(timer); return; }
+    let fp;
+    try { const b = buildCardPayload(m); fp = JSON.stringify([b.payload, b.items]); } catch (e) { return; }
+    // Aucune modification depuis la derniere sauvegarde -> aucun appel inutile.
+    if (fp === baseline || fp === lastSent) { if (timer) clearTimeout(timer); return; }
+    inFlight = true;
+    try {
+      const built = buildCardPayload(m);
+      await api("/api/imports/" + id, "PUT", built.payload);
+      if (built.items.length) await api("/api/imports/" + id + "/checklist", "PUT", { items: built.items });
+      lastSent = fp;
+      baseline = fp;
+      flash();
+    } catch (e) {
+      // Silencieux : le bouton Enregistrer reste disponible en cas d'echec.
+      if (hint) {
+        hint.innerHTML = "⚠ ";
+        hint.style.opacity = "1";
+        setTimeout(() => { if (hint && hint.style.opacity) hint.style.opacity = "0"; }, 2500);
+      }
+    }
+    inFlight = false;
+    if (pending) { pending = false; fire(); }
+  };
+  let baseline = "";
+  try { baseline = JSON.stringify([buildCardPayload(m).payload, buildCardPayload(m).items]); } catch (e) { baseline = ""; }
+  let lastSent = "";
+  form.addEventListener("input", () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(fire, 1200);
+  });
+  // Le formulaire est re-injecte a la fermeture : on neutralise le debounce.
+  const observer = new MutationObserver(() => {
+    if (!document.contains(form)) {
+      if (timer) clearTimeout(timer);
+    }
+  });
+  observer.observe(form.parentElement || form, { childList: true, subtree: true });
+}
 
 const ATT_EXTS = [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tif", ".tiff", ".svg"];
 
@@ -5107,6 +5633,10 @@ document.addEventListener("click", async (e) => {
     } catch (e) {
       toast(e.message === "cannot delete self" ? t("user_self_delete") : e.message === "last admin" ? t("user_last_admin") : t("err_forbidden"));
     }
+    return;
+  }
+  if (act === "backup-open") {
+    openBackupModal();
     return;
   }
   if (act === "data-backup") {

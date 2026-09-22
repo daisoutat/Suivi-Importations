@@ -21,6 +21,8 @@ from urllib.parse import parse_qs, unquote, urlparse
 from xml.sax.saxutils import escape
 
 import ai
+import backup_scheduler
+import reconcile
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE, "static")
@@ -223,6 +225,15 @@ def init_db():
             content_type TEXT,
             size INTEGER,
             created_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS reconcile_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT,
+            invoice_file TEXT,
+            po_file TEXT,
+            created_at TEXT,
+            stats TEXT,
+            result TEXT
         );
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
@@ -709,10 +720,19 @@ class App(BaseHTTPRequestHandler):
                 })
             elif parts[1:] == ["settings"]:
                 self.json_out(200, self.get_app_settings(conn, token))
+            elif parts[1:] == ["backup", "status"]:
+                self.json_out(200, backup_scheduler.status())
             elif parts[1:] == ["backup"]:
                 if self.require_admin() is None:
                     return
                 self.do_backup(conn)
+            elif parts[1:] == ["reconcile", "runs"]:
+                self.list_reconcile_runs(conn)
+            elif len(parts) == 4 and parts[1] == "reconcile" and parts[2] == "runs":
+                try:
+                    self.get_reconcile_run(conn, int(parts[3]))
+                except ValueError:
+                    self.error(HTTPStatus.BAD_REQUEST, "bad request")
             elif parts[1:] == ["users"]:
                 user = self.require_admin()
                 if user is None:
@@ -1363,6 +1383,11 @@ class App(BaseHTTPRequestHandler):
                 if self.require_admin() is None:
                     return
                 self.do_import_backup(conn)
+            elif parts[1:] == ["backup", "now"]:
+                if self.require_admin() is None:
+                    return
+                res = backup_scheduler.run_snapshot()
+                self.json_out(200, res)
             elif len(parts) == 4 and parts[1] == "imports" and parts[3] == "attachments":
                 self.do_upload_attachments(conn, int(parts[2]), token)
             elif parts[1:] == ["assistant", "chat"]:
@@ -1373,6 +1398,8 @@ class App(BaseHTTPRequestHandler):
                 self.do_assistant_email_risk(conn)
             elif parts[1:] == ["assistant", "documents"]:
                 self.do_assistant_upload(conn)
+            elif parts[1:] == ["reconcile"]:
+                self.do_reconcile(conn, token)
             else:
                 self.error(HTTPStatus.NOT_FOUND, "endpoint not found")
         finally:
@@ -2012,6 +2039,99 @@ class App(BaseHTTPRequestHandler):
         remove_stored_file(row["stored_name"])
         self.json_out(200, {"ok": True, "attachments": self.list_attachments(conn, imp_id)})
 
+    # ------------------------------------------------------------------
+    # Rapprochement facture / bon de commande (module reconciliation).
+    # Endpoint: POST /api/reconcile (multipart: invoice + po).
+    # Lecture seule sur les fichiers : aucun fichier brut n'est stocke sur
+    # disque ; seul le resultat normalise est archive dans reconcile_runs.
+    # ------------------------------------------------------------------
+
+    def do_reconcile(self, conn, user):
+        try:
+            parts = self.read_upload_parts()
+        except ValueError:
+            self.error(HTTPStatus.BAD_REQUEST, "bad upload")
+            return
+        files = {}
+        for part in parts:
+            name = part.get("name")
+            if name in ("invoice", "po") and part.get("filename") and part.get("data"):
+                files[name] = (part["filename"], part["data"])
+        missing = [k for k in ("invoice", "po") if k not in files]
+        if missing:
+            self.json_out(HTTPStatus.BAD_REQUEST, {
+                "error": "reconcile_missing_files",
+                "code": "files",
+                "message": "Fichiers requis : invoice + po",
+                "missing": missing,
+            })
+            return
+        invoice_name, invoice_data = files["invoice"]
+        po_name, po_data = files["po"]
+        try:
+            result = reconcile.reconcile_bytes(invoice_data, invoice_name, po_data, po_name)
+        except reconcile.ReconcileError as exc:
+            self.json_out(HTTPStatus.BAD_REQUEST, {
+                "error": "reconcile_failed",
+                "code": exc.code,
+                "message": exc.message,
+                "missing": exc.missing or [],
+            })
+            return
+        except Exception:
+            self.json_out(HTTPStatus.INTERNAL_SERVER_ERROR, {
+                "error": "reconcile_failed",
+                "code": "internal",
+                "message": "Erreur interne du rapprochement.",
+            })
+            return
+        # Archive (synchronisation temps reel avec la base, additive uniquement).
+        conn.execute(
+            "INSERT INTO reconcile_runs (username, invoice_file, po_file, created_at, stats, result) "
+            "VALUES (?,?,?,?,?,?)",
+            (
+                user["username"] if user else "?",
+                invoice_name, po_name, now_iso(),
+                json.dumps(result["stats"], ensure_ascii=False),
+                json.dumps(result, ensure_ascii=False),
+            ),
+        )
+        conn.commit()
+        run_id = conn.execute("SELECT last_insert_rowid() AS i").fetchone()["i"]
+        result["run_id"] = run_id
+        self.json_out(HTTPStatus.OK, result)
+
+    def list_reconcile_runs(self, conn):
+        rows = conn.execute(
+            "SELECT id, username, invoice_file, po_file, created_at, stats "
+            "FROM reconcile_runs ORDER BY id DESC LIMIT 20"
+        ).fetchall()
+        out = []
+        for r in rows:
+            item = dict(r)
+            try:
+                item["stats"] = json.loads(item["stats"] or "{}")
+            except Exception:
+                item["stats"] = {}
+            out.append(item)
+        self.json_out(HTTPStatus.OK, {"runs": out})
+
+    def get_reconcile_run(self, conn, run_id):
+        row = conn.execute(
+            "SELECT id, username, invoice_file, po_file, created_at, stats, result "
+            "FROM reconcile_runs WHERE id=?", (run_id,)
+        ).fetchone()
+        if not row:
+            self.error(HTTPStatus.NOT_FOUND, "run not found")
+            return
+        item = dict(row)
+        try:
+            item["stats"] = json.loads(item["stats"] or "{}")
+            item["result"] = json.loads(item["result"] or "{}")
+        except Exception:
+            item["result"] = None
+        self.json_out(HTTPStatus.OK, item)
+
     def do_assistant_chat(self, conn):
         try:
             body = self.read_body()
@@ -2142,6 +2262,11 @@ class App(BaseHTTPRequestHandler):
 
 def main():
     init_db()
+    backup_scheduler.start()
+    print("Sauvegarde automatique: %s (envoi par courriel: %s)" % (
+        "activee a " + backup_scheduler.schedule() if backup_scheduler.enabled()
+        else "desactivee (BACKUP_ENABLED=0)",
+        "oui" if backup_scheduler.email_configured() else "non - stockage local uniquement"))
     server = ThreadingHTTPServer((HOST, PORT), App)
     print(f"Suivi d'importation - Industries Radisson")
     print(f"Lecture: http://localhost:{PORT}  (rÃ©seau local: http://<cette-IP>:{PORT})")

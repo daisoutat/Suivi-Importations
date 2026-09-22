@@ -63,6 +63,11 @@ const I18N = {
     rec_reason_price: "Prix différent",
     rec_reason_description: "Description différente",
     rec_reason_missing: "Valeur manquante",
+    rec_save: "Enregistrer",
+    rec_clear: "Effacer",
+    rec_saved: "Enregistrée",
+    rec_saved_toast: "Réconciliation enregistrée dans la base de données.",
+    rec_clear_toast: "Session de réconciliation réinitialisée. L'historique est conservé.",
     nav_settings: "Paramètres",
     nav_trash: "Corbeille",
     trash_title: "Corbeille",
@@ -595,6 +600,11 @@ const I18N = {
     rec_reason_price: "Different price",
     rec_reason_description: "Different description",
     rec_reason_missing: "Missing value",
+    rec_save: "Save",
+    rec_clear: "Clear",
+    rec_saved: "Saved",
+    rec_saved_toast: "Reconciliation saved to the database.",
+    rec_clear_toast: "Reconciliation session cleared. History is kept.",
     nav_settings: "Settings",
     nav_trash: "Trash",
     trash_title: "Trash",
@@ -2139,12 +2149,16 @@ async function reconcileHistory() {
   }
   const rows = runs.map((r) => {
     const s = r.stats || {};
+    const savedBadge = r.saved
+      ? `<span class="rec-saved yes">${esc(t("rec_saved"))}</span>`
+      : `<span class="rec-saved no">—</span>`;
     return `<tr>
       <td>${esc(r.invoice_file || "")}</td>
       <td>${esc(r.po_file || "")}</td>
       <td class="num-md">${s.oui || 0} / ${s.neuf || 0}</td>
       <td>${esc((s.rate != null ? s.rate : 0) + "%")}</td>
       <td>${esc(fmtDateTime(r.created_at))}</td>
+      <td>${savedBadge}</td>
       <td><button type="button" class="btn small ghost" data-act="rec-history" data-id="${r.id}">${esc(t("rec_rerun"))}</button></td>
     </tr>`;
   }).join("");
@@ -2152,7 +2166,7 @@ async function reconcileHistory() {
     <div class="table-wrap fluid"><table class="tbl module-table">
       <thead><tr><th>${esc(t("rec_invoice_label"))}</th><th>${esc(t("rec_po_label"))}</th>
         <th>${esc(t("rec_stats_ok"))} / ${esc(t("rec_stats_bad"))}</th><th>${esc(t("rec_rate"))}</th>
-        <th>${esc(t("col_created"))}</th><th></th></tr></thead>
+        <th>${esc(t("col_created"))}</th><th>${esc(t("rec_saved"))}</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
   </div>`;
@@ -2189,6 +2203,7 @@ async function runReconcile() {
       return;
     }
     state.reconcileLast = data;
+    state.reconcileRunId = data.run_id;
     await renderReconcile();
     toast(t("rec_done_toast", { n: data.stats.neuf }));
   } catch (e) {
@@ -2202,26 +2217,88 @@ async function openReconcileRun(id) {
   try {
     const item = await api("/api/reconcile/runs/" + id);
     if (item && item.result) state.reconcileLast = item.result;
+    state.reconcileRunId = id;
     await renderReconcile();
   } catch (e) {
     toast(e.message || t("rec_error"));
   }
 }
 
+async function saveReconcile() {
+  // Bouton "Enregistrer" : valide le rapprochement affiche dans la base
+  // (synchronisation temps reel, additive). L'archive resultat reste inchangee.
+  if (!state.reconcileLast) { toast(t("rec_error")); return; }
+  const id = state.reconcileRunId;
+  if (!id) { toast(t("rec_error")); return; }
+  const btn = document.querySelector('[data-act="rec-save"]');
+  if (btn) { btn.disabled = true; }
+  try {
+    const res = await fetch("/api/reconcile/runs/" + id + "/save", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ saved: true }),
+    });
+    if (res.status === 401) {
+      state.authed = false;
+      location.hash = "#/login";
+      render();
+      return;
+    }
+    if (!res.ok) { toast(t("rec_error")); return; }
+    toast(t("rec_saved_toast"));
+    await refreshReconcileHistory();
+  } catch (e) {
+    toast(e.message || t("rec_error"));
+  } finally {
+    if (btn) { btn.disabled = false; }
+  }
+}
+
+function clearReconcile() {
+  // Bouton "Effacer" : remet l'etat de session local a zero. Aucune donnee
+  // en base n'est touchee (l'historique reste integralement conserve).
+  state.reconcileLast = null;
+  state.reconcileRunId = null;
+  renderReconcile();
+  toast(t("rec_clear_toast"));
+}
+
+async function refreshReconcileHistory() {
+  const box = document.getElementById("rec-history-box");
+  if (box) {
+    box.innerHTML = await reconcileHistory();
+    bindReconcileHistory();
+  }
+}
+
+function bindReconcileHistory() {
+  document.querySelectorAll('[data-act="rec-history"]').forEach((b) => {
+    b.addEventListener("click", () => { openReconcileRun(b.dataset.id); });
+  });
+}
+
 async function renderReconcile() {
+  const actions = state.reconcileLast
+    ? `<div class="rec-actions">
+        <button type="button" class="btn" data-act="rec-save">💾 ${esc(t("rec_save"))}</button>
+        <button type="button" class="btn danger" data-act="rec-clear">🗑 ${esc(t("rec_clear"))}</button>
+      </div>`
+    : "";
   const inner = moduleHeader(
     "mod_reconcile_title", "module_sub_reconcile",
     state.reconcileLast ? state.reconcileLast.generated_at : null
   ) + reconcileForm()
-    + (state.reconcileLast ? reconcileReport(state.reconcileLast) : "")
-    + await reconcileHistory();
+    + (state.reconcileLast ? reconcileReport(state.reconcileLast) + actions : "")
+    + `<div id="rec-history-box">` + await reconcileHistory() + `</div>`;
   document.getElementById("app").innerHTML = shell(t("nav_reconcile"), inner);
   moduleRefreshFn = renderReconcile;
   const goBtn = document.getElementById("rec-go");
   if (goBtn) goBtn.addEventListener("click", () => { runReconcile(); });
-  document.querySelectorAll('[data-act="rec-history"]').forEach((b) => {
-    b.addEventListener("click", () => { openReconcileRun(b.dataset.id); });
-  });
+  const saveBtn = document.querySelector('[data-act="rec-save"]');
+  if (saveBtn) saveBtn.addEventListener("click", () => { saveReconcile(); });
+  const clearBtn = document.querySelector('[data-act="rec-clear"]');
+  if (clearBtn) clearBtn.addEventListener("click", () => { clearReconcile(); });
+  bindReconcileHistory();
 }
 
 /* ---------------------------------------------------------------- router */

@@ -268,6 +268,13 @@ def init_db():
     if "prefs" not in u_cols:
         # Preferences de notification par utilisateur (JSON) : ajout additif.
         conn.execute("ALTER TABLE users ADD COLUMN prefs TEXT")
+    r_cols = [r["name"] for r in conn.execute("PRAGMA table_info(reconcile_runs)").fetchall()]
+    if "saved" not in r_cols:
+        # Migration additive : bouton "Enregistrer" -> flag de validation sur
+        # un rapprochement deja archive. Aucune perte, aucune reecriture.
+        conn.execute("ALTER TABLE reconcile_runs ADD COLUMN saved INTEGER NOT NULL DEFAULT 0")
+    if "saved_at" not in r_cols:
+        conn.execute("ALTER TABLE reconcile_runs ADD COLUMN saved_at TEXT")
     cols = [r["name"] for r in conn.execute("PRAGMA table_info(checklist_items)").fetchall()]
     if "link" not in cols:
         conn.execute("ALTER TABLE checklist_items ADD COLUMN link TEXT")
@@ -1443,6 +1450,9 @@ class App(BaseHTTPRequestHandler):
                 self.do_soft_delete_import(conn, int(target), True, token)
             elif resource == "imports" and len(parts) == 4 and sub == "restore":
                 self.do_soft_delete_import(conn, int(target), False, token)
+            elif resource == "reconcile" and len(parts) == 5 and parts[2] == "runs" and parts[4] == "save":
+                # Bouton "Enregistrer" : marque le rapprochement comme valide.
+                self.save_reconcile_run(conn, int(parts[3]), token)
             else:
                 self.error(HTTPStatus.NOT_FOUND, "endpoint not found")
         finally:
@@ -2103,7 +2113,7 @@ class App(BaseHTTPRequestHandler):
 
     def list_reconcile_runs(self, conn):
         rows = conn.execute(
-            "SELECT id, username, invoice_file, po_file, created_at, stats "
+            "SELECT id, username, invoice_file, po_file, created_at, stats, saved, saved_at "
             "FROM reconcile_runs ORDER BY id DESC LIMIT 20"
         ).fetchall()
         out = []
@@ -2118,7 +2128,7 @@ class App(BaseHTTPRequestHandler):
 
     def get_reconcile_run(self, conn, run_id):
         row = conn.execute(
-            "SELECT id, username, invoice_file, po_file, created_at, stats, result "
+            "SELECT id, username, invoice_file, po_file, created_at, stats, result, saved, saved_at "
             "FROM reconcile_runs WHERE id=?", (run_id,)
         ).fetchone()
         if not row:
@@ -2131,6 +2141,29 @@ class App(BaseHTTPRequestHandler):
         except Exception:
             item["result"] = None
         self.json_out(HTTPStatus.OK, item)
+
+    def save_reconcile_run(self, conn, run_id, user):
+        """Marque un rapprochement deja archive comme valide/approuve
+        (bouton "Enregistrer" du module). Additif : seuls saved/saved_at
+        sont mis a jour, le resultat archive reste strictement identique."""
+        row = conn.execute(
+            "SELECT id FROM reconcile_runs WHERE id=?", (run_id,)
+        ).fetchone()
+        if not row:
+            self.error(HTTPStatus.NOT_FOUND, "run not found")
+            return
+        conn.execute(
+            "UPDATE reconcile_runs SET saved=1, saved_at=? WHERE id=?",
+            (now_iso(), run_id),
+        )
+        conn.commit()
+        self.json_out(HTTPStatus.OK, {
+            "ok": True,
+            "run_id": run_id,
+            "saved": 1,
+            "saved_at": now_iso(),
+            "saved_by": user["username"] if user else None,
+        })
 
     def do_assistant_chat(self, conn):
         try:

@@ -101,8 +101,9 @@ settings(key, value)          -- stocke le hash du mot de passe
 | GET | `/api/rates` | Taux de change en direct (base USD, cache 30 min) pour le widget de la barre latérale |
 | POST | `/api/password` | Changement de son propre mot de passe (vérifie l'ancien) |
 | POST | `/api/reconcile` | Rapprochement facture fournisseur / commande (multipart `invoice` + `po`, `.xlsx` ou `.csv`; renvoie `{ok, invoice_file, po_file, invoice_sheet, po_sheet, columns, generated_at, stats, rows, pivot, run_id}`) |
-| GET | `/api/reconcile/runs` | Historique des 20 derniers rapprochements (`id`, fichiers, `created_at`, `stats`) |
+| GET | `/api/reconcile/runs` | Historique des 20 derniers rapprochements (`id`, fichiers, `created_at`, `stats`, statut `saved`) |
 | GET | `/api/reconcile/runs/<id>` | Détail complet d'un rapprochement (stats + lignes + pivot) |
+| PUT | `/api/reconcile/runs/<id>/save` | Bouton « Enregistrer » : marque un rapprochement archivé comme validé (`saved=1`, `saved_at`) — additif, le résultat archivé reste inchangé |
 
 - L'export `.xlsx` est généré côté serveur **sans dépendance externe** : `zipfile` (package OOXML) + XML `inlineStr`, sérialisation conforme à Excel/LibreOffice (validée par openpyxl).
 - **Rapprochement** (`reconcile.py`) : lecture serveur des fichieers via **openpyxl** 3.1.5 (déjà dans `requirements.txt`, aucune dépendance supplémentaire) pour `.xlsx`; `.csv` lu avec `csv.Sniffer` (séparateurs `, ; \t |`); `.xls` refusé (code d'erreur `xls`). Les 4 colonnes canoniques `Item Code / Code`, `Description`, `Quantity / Qté`, `Unit Price / Prix unitaire` sont détectées dans les 40 premières lignes, sans ordre imposé (alias FR/EN, accents ignorés); en-têtes et lignes de totaux sautés; max 5 000 lignes. **Algorithme déterministe** : normalisation décimale souple, puis équivalent RECHERCHEV sur le code — passe 1 = paire exacte (qte + prix + description) → statut `oui`; passe 2 = consommation positionnelle des lignes résiduelles → `neuf`. Lignes supplémentaires de la commande (non facturées) → `neuf` (`extra`). Le pivot par code agrège quantités et montants (`oui`/`neuf`) et la synthèse du rapport isole les lignes fautives.

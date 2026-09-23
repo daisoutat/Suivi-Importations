@@ -67,8 +67,10 @@ imports(id, supplier_id → suppliers ON DELETE CASCADE,
                                             -- deleted : 1 = corbeille (suppression douce)
 
 checklist_items(id, import_id → imports ON DELETE CASCADE,
-        task_key, task_label_fr, task_label_en, status, notes, link, position,
+        task_key, task_label_fr, task_label_en, status, notes, link, links, position,
         meta)               -- meta : JSON (fiche MECO : {"on_rail":bool,"eta_note":"…"})
+                            -- links : JSON array d'URLs (multi-liens) ; `link` garde le 1er
+                            -- lien pour compatibilité descendante
 
 settings(key, value)          -- stocke le hash du mot de passe
 ```
@@ -92,7 +94,7 @@ settings(key, value)          -- stocke le hash du mot de passe
 | POST / PUT / DELETE | `/api/suppliers[/id]` | CRUD fournisseurs |
 | GET | `/api/imports` | Fiches (filtres `supplier_id`, `search`, `deleted=1` → corbeille) + résumé checklist (`_done`/`_total`) |
 | GET / POST / PUT / DELETE | `/api/imports[/id]` | CRUD fiches |
-| PUT | `/api/imports/<id>/checklist` | Remplacement complet de la liste de vérification |
+| PUT | `/api/imports/<id>/checklist` | Remplacement complet de la liste de vérification (chaque tâche accepte `links` : array d'URLs **ou** héritage mono-valeur `link`; le serveur stocke les deux : `links`=JSON, `link`=1er) |
 | PUT | `/api/imports/<id>/trash` | Suppression douce (`deleted=1`) |
 | PUT | `/api/imports/<id>/restore` | Restauration depuis la corbeille (`deleted=0`) |
 | GET | `/api/imports/export?lang=fr` | Export `.xlsx` des **Prochaines arrivées** (ETA ≥ aujourd'hui, tri ETA croissant; feuille bilingue `Prochaines arrivées`/`Upcoming arrivals`) |
@@ -104,6 +106,8 @@ settings(key, value)          -- stocke le hash du mot de passe
 | GET | `/api/reconcile/runs` | Historique des 20 derniers rapprochements (`id`, fichiers, `created_at`, `stats`, statut `saved`) |
 | GET | `/api/reconcile/runs/<id>` | Détail complet d'un rapprochement (stats + lignes + pivot) |
 | PUT | `/api/reconcile/runs/<id>/save` | Bouton « Enregistrer » : marque un rapprochement archivé comme validé (`saved=1`, `saved_at`) — additif, le résultat archivé reste inchangé |
+| POST | `/api/rte/upload` | Éditeur enrichi : upload multipart d'une pièce jointe (champ `file`, extensions `ALLOWED_ATT_EXT`, ≤ 10 Mo) → `{url: "/api/rte/files/<stored>", name, content_type}` |
+| GET | `/api/rte/files/<stored>` | Éditeur enrichi : sert l'octet téléversé (auth requise, MIME détecté, `Cache-Control: no-store`, anti-traversale) |
 
 - L'export `.xlsx` est généré côté serveur **sans dépendance externe** : `zipfile` (package OOXML) + XML `inlineStr`, sérialisation conforme à Excel/LibreOffice (validée par openpyxl).
 - **Rapprochement** (`reconcile.py`) : lecture serveur des fichieers via **openpyxl** 3.1.5 (déjà dans `requirements.txt`, aucune dépendance supplémentaire) pour `.xlsx`; `.csv` lu avec `csv.Sniffer` (séparateurs `, ; \t |`); `.xls` refusé (code d'erreur `xls`). Les 4 colonnes canoniques `Item Code / Code`, `Description`, `Quantity / Qté`, `Unit Price / Prix unitaire` sont détectées dans les 40 premières lignes, sans ordre imposé (alias FR/EN, accents ignorés); en-têtes et lignes de totaux sautés; max 5 000 lignes. **Algorithme déterministe** : normalisation décimale souple, puis équivalent RECHERCHEV sur le code — passe 1 = paire exacte (qte + prix + description) → statut `oui`; passe 2 = consommation positionnelle des lignes résiduelles → `neuf`. Lignes supplémentaires de la commande (non facturées) → `neuf` (`extra`). Le pivot par code agrège quantités et montants (`oui`/`neuf`) et la synthèse du rapport isole les lignes fautives.
@@ -114,6 +118,7 @@ settings(key, value)          -- stocke le hash du mot de passe
 - **Comptes utilisateurs** : table `users` (`username` unique insensible à la casse, `password_hash`, `display_name`, `role`). À la première initialisation, un compte `admin` est créé avec le mot de passe défini précédemment. Les rôles sont `admin` (accès complet, gestion des utilisateurs) et `user` (accès aux données, sans gestion des comptes). Impossible de supprimer son propre compte ni le dernier administrateur.
 - **Sessions** : jeton aléatoire (`secrets.token_urlsafe`), cookie `HttpOnly; SameSite=Strict`, TTL 12 h.
 - **Anti-bruteforce** : 5 échecs de connexion par IP → verrouillage 60 s (HTTP 429).
+- **Éditeur enrichi (RTE)** : assainissement **côté serveur** (`sanitize_rich_html`, `HTMLParser` stdlib) appliqué à l'enregistrement des zones riches (`suppliers.notes`, `imports.notes`, notes de checklist, `imp_email_fr`/`imp_email_en`; `imports.add_info` est un JSON non assaini). Liste blanche de balises/attributs : `on*`, `javascript:`/`vbscript:`, `script`/`iframe`/SVG `data:` supprimés; `data:` image/PDF et URL relatives `/api/rte/files/...` conservées pour ne pas casser les pièces jointes. L'upload (`/api/rte/upload`) réutilise `ALLOWED_ATT_EXT` + `stored_file_name` (nom aléatoire `secrets.token_hex`) et la servation est auth + anti-traversale.
 - **Non atteint (limite connue)** : le HTTP local n'est pas chiffré; pour du hors-réseau de confiance uniquement. HTTPS nécessiterait un certificat (voir §6 – Évolution).
 
 ## 4. Interface

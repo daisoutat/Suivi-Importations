@@ -1,4 +1,5 @@
 ﻿import hashlib
+import html
 import json
 import mimetypes
 import os
@@ -14,6 +15,7 @@ import zipfile
 from datetime import datetime, timedelta
 from email import policy
 from email.parser import BytesParser
+from html.parser import HTMLParser
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import BytesIO
@@ -152,6 +154,145 @@ def remove_stored_file(stored):
             pass
 
 
+# ---------------------------------------------------------------------------
+# Assainissement HTML coté serveur (anti-XSS) pour les zones riches de l'editeur.
+# Approche additive et conservatrice : le texte brut (notes simple ligne) est
+# conserve a l'identique, seules les balises/attributs hors liste blanche sont
+# retires. Les liens `data:` (image ou PDF) sont preserves pour ne pas casser
+# les pieces jointes inserees hors-ligne, ainsi que les URL relatives au serveur
+# (`/api/rte/files/...`) produites par l'upload securisee.
+# ---------------------------------------------------------------------------
+
+ALLOWED_RICH_TAGS = frozenset({
+    "p", "br", "div", "span", "b", "strong", "i", "em", "u", "s", "strike",
+    "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "code",
+    "pre", "hr", "a", "img", "table", "thead", "tbody", "tfoot", "tr", "td",
+    "th", "caption", "figure", "figcaption", "em",
+})
+ALLOWED_RICH_ATTRS = frozenset({
+    "href", "src", "target", "rel", "title", "alt", "width", "height",
+    "align", "colspan", "rowspan", "start", "type", "class",
+})
+
+
+def _rich_url_ok(value):
+    """Valide un URL pour href/src (protocoles HTTP(S)/mailto/tel/ftp,
+    chemins relatifs serveur ou data: image/PDF uniquement)."""
+    low = str(value or "").strip().lower()
+    if not low:
+        return False
+    if low.startswith(("javascript:", "vbscript:", "data:text/html", "data:image/svg")):
+        return False
+    if low.startswith("data:"):
+        return low.startswith("data:image/") or low.startswith("data:application/pdf")
+    if low.startswith(("//", "/", "#", "./", "../")):
+        return True
+    if ":" not in low:
+        return True
+    m = re.match(r"^([a-z][a-z0-9+\-.]*):", low)
+    return bool(m) and m.group(1) in ("http", "https", "mailto", "tel", "ftp")
+
+
+class _RichHTMLFilter(HTMLParser):
+    """Reconstruit le HTML en ne gardant que la liste blanche."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=False)
+        self.out = []
+
+    def handle_data(self, data):
+        self.out.append(data)
+
+    def handle_entityref(self, name):
+        self.out.append("&" + name + ";")
+
+    def handle_charref(self, name):
+        self.out.append("&#" + name + ";")
+
+    def handle_starttag(self, tag, attrs):
+        self._emit(tag, attrs, self_closing=False)
+
+    def handle_startendtag(self, tag, attrs):
+        self._emit(tag, attrs, self_closing=True)
+
+    def handle_endtag(self, tag):
+        if tag.lower() in ALLOWED_RICH_TAGS:
+            self.out.append("</" + tag.lower() + ">")
+
+    def _emit(self, tag, attrs, self_closing):
+        t = tag.lower()
+        if t not in ALLOWED_RICH_TAGS:
+            return
+        kept = ""
+        for k, v in attrs:
+            kl = (k or "").lower()
+            if kl.startswith("on") or kl not in ALLOWED_RICH_ATTRS:
+                continue
+            val = html.unescape("" if v is None else str(v))
+            if kl in ("href", "src"):
+                if not _rich_url_ok(val):
+                    continue
+            elif kl == "target":
+                if val not in ("_blank", "_self", "_top", "_parent"):
+                    continue
+            elif kl == "rel":
+                toks = [x for x in val.split() if x in ("noopener", "noreferrer")]
+                if not toks:
+                    continue
+                val = " ".join(toks)
+            kept += ' %s="%s"' % (kl, html.escape(val, quote=True))
+        sep = "/" if self_closing and t not in ("br", "hr", "img") else ""
+        self.out.append("<" + t + kept + sep + ">")
+
+
+def sanitize_rich_html(text):
+    """Assainit un contenu riche cote serveur. Le texte sans balise passe
+    tel quel ; sinon seules les balises/attributs autorises survivent."""
+    if text is None:
+        return ""
+    raw = str(text)
+    if not raw.strip():
+        return ""
+    if "<" not in raw:
+        return raw
+    p = _RichHTMLFilter()
+    p.feed(raw)
+    p.close()
+    return "".join(p.out)
+
+
+def link_list_from_item(item):
+    """Normalise le champ lien d'une tache de checklist vers une liste de URLs.
+
+    Le client envoie soit la liste canonique `links` (array), soit l'ancien
+    champ mono-valeur `link` (string). Retourne toujours une liste de chaines
+    non vides afin de preserver les donnees historiques sans perte.
+    """
+    raw = item.get("links")
+    if isinstance(raw, list):
+        return [str(x).strip() for x in raw if isinstance(x, str) and str(x).strip()]
+    legacy = item.get("link")
+    if isinstance(legacy, str) and legacy.strip():
+        return [legacy.strip()]
+    return []
+
+
+def link_list_from_storage(raw, fallback=""):
+    """Depile la colonne `links` (JSON). En l'absence de liste valide, retombe
+    automatiquement sur l'ancienne colonne `link` (adaptation sans perte des
+    enregistrements herites a une seule URL)."""
+    if raw:
+        try:
+            arr = json.loads(raw)
+            if isinstance(arr, list):
+                return [str(x).strip() for x in arr if isinstance(x, str) and str(x).strip()]
+        except (TypeError, ValueError):
+            pass
+    if isinstance(fallback, str) and fallback.strip():
+        return [fallback.strip()]
+    return []
+
+
 def db_conn():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -278,6 +419,10 @@ def init_db():
     cols = [r["name"] for r in conn.execute("PRAGMA table_info(checklist_items)").fetchall()]
     if "link" not in cols:
         conn.execute("ALTER TABLE checklist_items ADD COLUMN link TEXT")
+    if "links" not in cols:
+        # Migration additive : liste de hyperliens (JSON) par tache, cote a cote
+        # de l'ancien champ mono-valeur `link` (compatibilite ascendante).
+        conn.execute("ALTER TABLE checklist_items ADD COLUMN links TEXT")
     imp_cols = [r["name"] for r in conn.execute("PRAGMA table_info(imports)").fetchall()]
     if "serial" not in imp_cols:
         conn.execute("ALTER TABLE imports ADD COLUMN serial TEXT")
@@ -740,6 +885,8 @@ class App(BaseHTTPRequestHandler):
                     self.get_reconcile_run(conn, int(parts[3]))
                 except ValueError:
                     self.error(HTTPStatus.BAD_REQUEST, "bad request")
+            elif len(parts) == 4 and parts[1] == "rte" and parts[2] == "files":
+                self.do_rte_file(parts[3])
             elif parts[1:] == ["users"]:
                 user = self.require_admin()
                 if user is None:
@@ -998,14 +1145,19 @@ class App(BaseHTTPRequestHandler):
         if not base:
             return None
         tasks = conn.execute(
-            "SELECT id, task_key, task_label_fr, task_label_en, status, notes, link, meta, position "
+            "SELECT id, task_key, task_label_fr, task_label_en, status, notes, link, links, meta, position "
             "FROM checklist_items WHERE import_id=? ORDER BY position, id", (imp_id,)
         ).fetchall()
         atts = conn.execute(
             "SELECT id, original_name, content_type, size, created_at "
             "FROM attachments WHERE import_id=? ORDER BY id", (imp_id,)
         ).fetchall()
-        return {"import": dict(base), "checklist": [dict(r) for r in tasks],
+        checklist = []
+        for r in tasks:
+            d = dict(r)
+            d["links"] = link_list_from_storage(d.get("links"), d.get("link"))
+            checklist.append(d)
+        return {"import": dict(base), "checklist": checklist,
                 "attachments": [dict(r) for r in atts]}
 
     def list_attachments(self, conn, imp_id):
@@ -1407,6 +1559,8 @@ class App(BaseHTTPRequestHandler):
                 self.do_assistant_upload(conn)
             elif parts[1:] == ["reconcile"]:
                 self.do_reconcile(conn, token)
+            elif parts[1:] == ["rte", "upload"]:
+                self.do_rte_upload()
             else:
                 self.error(HTTPStatus.NOT_FOUND, "endpoint not found")
         finally:
@@ -1620,7 +1774,7 @@ class App(BaseHTTPRequestHandler):
                     set_setting(conn, "imp_delay_tolerance", d)
             for key in ("imp_email_fr", "imp_email_en"):
                 if key in imp and imp[key] is not None:
-                    set_setting(conn, key, str(imp[key]))
+                    set_setting(conn, key, sanitize_rich_html(str(imp[key])))
         conn.commit()
         if fx_changed:
             invalidate_rates()
@@ -1864,6 +2018,8 @@ class App(BaseHTTPRequestHandler):
             self.error(HTTPStatus.BAD_REQUEST, "name required")
             return
         fields = self.clean_fields(body, ["code", "city", "country", "contact", "email", "notes"])
+        if "notes" in fields:
+            fields["notes"] = sanitize_rich_html(fields["notes"])
         cur = conn.execute(
             "INSERT INTO suppliers (name, code, city, country, contact, email, notes, created_at, updated_at) "
             "VALUES (?,?,?,?,?,?,?,?,?)",
@@ -1875,6 +2031,8 @@ class App(BaseHTTPRequestHandler):
 
     def do_update_supplier(self, conn, sup_id, body):
         fields = self.clean_fields(body, ["name", "code", "city", "country", "contact", "email", "notes"])
+        if "notes" in fields:
+            fields["notes"] = sanitize_rich_html(fields["notes"])
         if "name" in fields:
             fields["name"] = (fields["name"] or "").strip()
             if not fields["name"]:
@@ -1903,6 +2061,9 @@ class App(BaseHTTPRequestHandler):
                                            "po_number", "inbsip", "doc_number", "pallets", "transitaire_bol",
                                            "container", "etd", "eta", "eta_van", "eta_dest",
                                            "qc_sampling_qc", "qc_sampling_reception", "notes", "add_info"])
+        # `notes` est une zone riche (editeur WYSIWYG) ; `add_info` est un JSON, non assaini.
+        if "notes" in fields:
+            fields["notes"] = sanitize_rich_html(fields["notes"])
         pallets = fields.get("pallets")
         serial = self.next_import_serial(conn)
         ts = now_iso()
@@ -1942,6 +2103,8 @@ class App(BaseHTTPRequestHandler):
                                            "po_number", "inbsip", "doc_number", "pallets", "transitaire_bol",
                                            "container", "etd", "eta", "eta_van", "eta_dest",
                                            "qc_sampling_qc", "qc_sampling_reception", "notes", "add_info"])
+        if "notes" in fields:
+            fields["notes"] = sanitize_rich_html(fields["notes"])
         fields["updated_at"] = now_iso()
         for col in ["qc_sampling_qc", "qc_sampling_reception"]:
             if col in fields:
@@ -1963,11 +2126,13 @@ class App(BaseHTTPRequestHandler):
         conn.execute("DELETE FROM checklist_items WHERE import_id=?", (imp_id,))
         for pos, it in enumerate(items):
             status = it.get("status") if it.get("status") in STATUSES else "pending"
+            links = link_list_from_item(it)
             conn.execute(
-                "INSERT INTO checklist_items (import_id, task_key, task_label_fr, task_label_en, status, notes, link, meta, position) "
-                "VALUES (?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO checklist_items (import_id, task_key, task_label_fr, task_label_en, status, notes, link, links, meta, position) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (imp_id, it.get("task_key"), it.get("task_label_fr", ""), it.get("task_label_en", ""),
-                 status, it.get("notes", ""), it.get("link", ""), it.get("meta", ""), pos),
+                 status, sanitize_rich_html(it.get("notes")),
+                 links[0] if links else "", json.dumps(links), it.get("meta", ""), pos),
             )
         self.log_event(conn, imp_id, user, "checklist", "%d" % len(items))
         conn.commit()
@@ -2048,6 +2213,55 @@ class App(BaseHTTPRequestHandler):
         conn.commit()
         remove_stored_file(row["stored_name"])
         self.json_out(200, {"ok": True, "attachments": self.list_attachments(conn, imp_id)})
+
+    # ------------------------------------------------------------------
+    # Editeur enrichi (RTE) : upload securisé + servation des fichiers.
+    # POST /api/rte/upload (multipart, champ "file") -> {"url": ...}
+    # GET  /api/rte/files/<stored> (auth requise, type MIME + no-store).
+    # Le client embarque d'abord le fichier en `data:` (synchrone, aucun
+    # blob), puis remplace l'URL par celle du serveur si l'upload aboutit.
+    # ------------------------------------------------------------------
+
+    def do_rte_upload(self):
+        try:
+            parts = self.read_upload_parts()
+        except ValueError:
+            self.error(HTTPStatus.BAD_REQUEST, "bad upload")
+            return
+        for part in parts:
+            if not (part.get("filename") and part["data"]):
+                continue
+            original = part["filename"]
+            ext = os.path.splitext(original.lower())[1]
+            if ext not in ALLOWED_ATT_EXT:
+                self.error(HTTPStatus.BAD_REQUEST, "type not allowed")
+                return
+            clean, stored = stored_file_name(original)
+            ctype = part.get("content_type") or mimetypes.guess_type(clean)[0] or "application/octet-stream"
+            with open(os.path.join(ATTACH_DIR, stored), "wb") as fh:
+                fh.write(part["data"])
+            self.json_out(200, {
+                "ok": True,
+                "url": "/api/rte/files/" + stored,
+                "name": clean,
+                "content_type": ctype,
+            })
+            return
+        self.error(HTTPStatus.BAD_REQUEST, "file required")
+
+    def do_rte_file(self, stored):
+        name = os.path.basename(stored or "")
+        if not name or name != stored:
+            self.error(HTTPStatus.BAD_REQUEST, "bad name")
+            return
+        full = os.path.normpath(os.path.join(ATTACH_DIR, name))
+        if not full.startswith(os.path.normpath(ATTACH_DIR)) or not os.path.isfile(full):
+            self.error(HTTPStatus.NOT_FOUND, "not found")
+            return
+        ctype, _ = mimetypes.guess_type(full)
+        with open(full, "rb") as fh:
+            data = fh.read()
+        self.send_head_text(HTTPStatus.OK, data, ctype or "application/octet-stream")
 
     # ------------------------------------------------------------------
     # Rapprochement facture / bon de commande (module reconciliation).

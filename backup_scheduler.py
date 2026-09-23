@@ -3,7 +3,12 @@
 - Chaque jour a HH:MM (env BACKUP_HOUR/BACKUP_MINUTE, defaut 15:00), un instantane
   complet de la base SQLite (toutes les tables) est ecrit dans data/backups/
   (fichier site_backup_<horodatage>.json) et, si un compte SMTP est configure
-  dans l'environnement, envoye par courriel au destinataire (defaut daisouta@gmail.com).
+  dans l'environnement ou dans le fichier .env, envoye par courriel au
+  destinataire (defaut daisouta@gmail.com).
+- La config SMTP accepte les deux conventions SMTP_* et EMAIL_* (port 465 ->
+  SMTP_SSL, port 587 -> SMTP + STARTTLS, EMAIL_SECURE/SMTP_SECURE pour forcer).
+  Les erreurs d'envoi sont structurees et bilingues (FR / EN), sans jamais
+  exposer de mot de passe ni de code brut seul.
 - Aucun acces reseau si SMTP absent : la sauvegarde locale reste fonctionnelle.
 - Ne leve jamais d'exception vers l'appelant (serveur Web ou endpoint) : toute
   erreur est capturee et renvoyee dans le dictionnaire de resultat.
@@ -14,11 +19,13 @@ import glob
 import json
 import os
 import smtplib
+import socket
 import sqlite3
 import threading
 import time
 from datetime import datetime, timedelta
 from email.header import Header
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formatdate
@@ -41,9 +48,67 @@ _lock = threading.Lock()
 _stop_evt = None
 
 
+def _parse_env_text(text):
+    """Analyse le contenu d'un fichier .env (une variable par ligne)."""
+    env = {}
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or line.startswith(";"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):].lstrip()
+        if "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key = key.strip()
+        val = val.strip()
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
+            val = val[1:-1]
+        if key:
+            env[key] = val
+    return env
+
+
+def _load_env_files():
+    """Charge les fichiers .env du projet (racine + dossier backup/ historique).
+    stdlib uniquement, aucun acces reseau. Les variables d'environnement deja
+    definies dans le processus prennent TOUJOURS le dessus (comportement dotenv
+    "non override"). Les fichiers sont optionnels : leur absence ne change rien."""
+    base = os.path.dirname(os.path.abspath(__file__))
+    env = {}
+    for path in (os.path.join(base, ".env"), os.path.join(base, "backup", ".env")):
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8-sig") as fh:
+                env.update(_parse_env_text(fh.read()))
+        except OSError:
+            pass
+    return env
+
+
+_app_env = _load_env_files()
+
+
 def _env(key, default):
     val = os.environ.get(key)
-    return val if val not in (None, "") else default
+    if val not in (None, ""):
+        return val
+    return _app_env.get(key, default)
+
+
+def _env_first(*keys):
+    """Premiere cle non-vide : d'abord l'environnement du processus, puis .env.
+    Supporte les deux conventions de nommage (SMTP_* et EMAIL_*)."""
+    for k in keys:
+        v = os.environ.get(k)
+        if v not in (None, ""):
+            return v
+    for k in keys:
+        v = _app_env.get(k)
+        if v not in (None, ""):
+            return v
+    return None
 
 
 def _as_int(val, default):
@@ -66,17 +131,30 @@ def _backup_dir():
 
 
 def _smtp_conf():
-    host = _env("SMTP_HOST", "")
-    user = _env("SMTP_USER", "")
-    pwd = _env("SMTP_APP_PASSWORD", "")
-    port = _as_int(_env("SMTP_PORT", str(DEFAULT_SMTP_PORT)), DEFAULT_SMTP_PORT)
-    frm = _env("BACKUP_FROM", user)
-    return host, port, user, pwd, frm
+    """Configuration SMTP centralisee.
+
+    Les deux conventions de nommage sont acceptees (SMTP_* / EMAIL_*) : EMAIL_*
+    etait celle documentee dans backup/.env.example (nodemailer). Les premieres
+    gagnent. `secure` choisi le transport : True -> SMTP_SSL (port 465 marche
+    aussi), False -> SMTP + STARTTLS (port 587), None -> derive du port.
+    """
+    host = _env_first("SMTP_HOST", "EMAIL_SMTP_HOST") or ""
+    user = _env_first("SMTP_USER", "EMAIL_USER") or ""
+    pwd = _env_first("SMTP_APP_PASSWORD", "EMAIL_APP_PASSWORD") or ""
+    port = _as_int(_env_first("SMTP_PORT", "EMAIL_SMTP_PORT", str(DEFAULT_SMTP_PORT)), DEFAULT_SMTP_PORT)
+    frm = _env_first("BACKUP_FROM", "EMAIL_FROM") or user
+    secure_txt = _env_first("SMTP_SECURE", "EMAIL_SECURE")
+    if secure_txt is None:
+        secure = (port == 465)
+    else:
+        secure = secure_txt.strip().lower() not in ("0", "false", "no", "off", "")
+    return {"host": host, "port": port, "user": user, "pwd": pwd,
+            "frm": frm, "secure": secure}
 
 
 def email_configured():
-    host, _p, user, pwd, _f = _smtp_conf()
-    return bool(host and user and pwd)
+    c = _smtp_conf()
+    return bool(c["host"] and c["user"] and c["pwd"])
 
 
 def schedule():
@@ -169,9 +247,11 @@ def _save_snapshot(payload, snapshot):
 
 
 def _email_snapshot(name, payload, snapshot):
-    host, port, user, pwd, frm = _smtp_conf()
+    c = _smtp_conf()
+    host, port, user, pwd, frm, secure = (c["host"], c["port"], c["user"],
+                                          c["pwd"], c["frm"], c["secure"])
     if not (host and user and pwd):
-        return (False, "SMTP non configuré (stockage local uniquement)")
+        return (False, None)  # non configuré => envoi simplement pas tenté
     meta = snapshot.get("meta", {})
     subject = "Sauvegarde automatique / Automatic backup — %s" % (
         meta.get("generated_at", datetime.now().isoformat()))
@@ -191,19 +271,58 @@ def _email_snapshot(name, payload, snapshot):
     msg["Date"] = formatdate(localtime=True)
     msg["Subject"] = Header(subject, "utf-8")
     msg.attach(MIMEText(body_fr + body_en, "plain", "utf-8"))
-    part = MIMEText(payload.decode("utf-8"), "json", "utf-8")
+    part = MIMEApplication(payload, _subtype="json")
     part.add_header("Content-Disposition", "attachment; filename=\"%s\"" % name)
     msg.attach(part)
-    smtp = smtplib.SMTP_SSL(host, port, timeout=30)
     try:
-        smtp.login(user, pwd)
-        smtp.sendmail(frm or user, [recipient()], msg.as_string())
-    finally:
+        if secure:
+            smtp = smtplib.SMTP_SSL(host, port, timeout=30)
+        else:
+            smtp = smtplib.SMTP(host, port, timeout=30)
+            smtp.ehlo()
+            smtp.starttls()
+            smtp.ehlo()
         try:
-            smtp.quit()
-        except Exception:
-            pass
+            smtp.login(user, pwd)
+            smtp.sendmail(frm or user, [recipient()], msg.as_string())
+        finally:
+            try:
+                smtp.quit()
+            except Exception:
+                pass
+    except Exception as exc:
+        return (False, _smtp_error_text(exc))
     return (True, "")
+
+
+def _smtp_error_text(exc):
+    """Message d'erreur structure, bilingue (FR / EN), sans code brut seul."""
+    if isinstance(exc, (socket.timeout, TimeoutError)):
+        note = ("délai de connexion au serveur SMTP dépassé",
+                "SMTP connection timed out")
+    elif isinstance(exc, socket.gaierror):
+        note = ("hôte SMTP introuvable (vérifier SMTP_HOST)",
+                "SMTP host not found (check SMTP_HOST)")
+    elif isinstance(exc, smtplib.SMTPAuthenticationError):
+        note = ("authentification refusée (vérifier utilisateur / mot de passe d'application)",
+                "authentication rejected (check user / app password)")
+    elif isinstance(exc, smtplib.SMTPConnectError):
+        note = ("connexion refusée par le serveur SMTP (vérifier hôte et port)",
+                "connection refused by SMTP server (check host and port)")
+    elif isinstance(exc, (smtplib.SMTPServerDisconnected,)):
+        note = ("le serveur SMTP a coupé la connexion (port sécurisé attendu ?)",
+                "SMTP server closed the connection (is a secure port expected?)")
+    else:
+        code = getattr(exc, "smtp_code", None)
+        raw = getattr(exc, "smtp_error", None)
+        detail = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else (str(raw) if raw else str(exc))
+        if code:
+            note = ("erreur SMTP %s (%s)" % (code, detail),
+                    "SMTP error %s (%s)" % (code, detail))
+        else:
+            note = ("erreur SMTP (%s)" % detail,
+                    "SMTP error (%s)" % detail)
+    return "%s / %s" % note
 
 
 def run_snapshot():

@@ -157,6 +157,10 @@ const I18N = {
     ai_value_goods: "Valeur de la marchandise",
     ai_customs_fees: "Frais de douane",
     ai_freight_charges: "Frais de fret",
+    extra_custom: "Champ personnalisé",
+    custom_field_name: "Nom du champ personnalisé…",
+    custom_add_btn: "＋ Ajouter",
+    extra_need_name: "Veuillez saisir un nom de champ.",
     supplier: "Fournisseur",
     actions: "Actions",
     checklist: "Liste de vérification",
@@ -171,6 +175,8 @@ const I18N = {
     cl_comments_label: "Commentaire",
     cl_comments_placeholder: "Commentaire / note…",
     cl_link_remove: "Supprimer le lien",
+    cl_link_add: "Ajouter un autre lien",
+    cl_link_add_txt: "+ lien",
     checklist_saved: "Liste de vérification enregistrée.",
     checklist_saved_title: "Enregistrement réussi",
     status_pending: "Non commencé",
@@ -488,6 +494,8 @@ const I18N = {
     backup_running: "Génération en cours…",
     backup_done: "Sauvegarde générée et envoyée.",
     backup_done_local: "Sauvegarde générée (courriel non configuré).",
+    backup_done_noemail: "Sauvegarde générée mais envoi par courriel échoué : {note}",
+    backup_err: "Sauvegarde impossible : {msg}",
     backup_schedule: "Planificateur",
     backup_next: "Prochaine exécution",
     backup_last: "Dernière exécution",
@@ -694,6 +702,10 @@ const I18N = {
     ai_value_goods: "Value of goods",
     ai_customs_fees: "Customs fees",
     ai_freight_charges: "Freight charges",
+    extra_custom: "Custom field",
+    custom_field_name: "Custom field name…",
+    custom_add_btn: "＋ Add",
+    extra_need_name: "Please enter a field name.",
     supplier: "Supplier",
     actions: "Actions",
     checklist: "Checklist",
@@ -708,6 +720,8 @@ const I18N = {
     cl_comments_label: "Comment",
     cl_comments_placeholder: "Comment / note…",
     cl_link_remove: "Remove link",
+    cl_link_add: "Add another link",
+    cl_link_add_txt: "+ link",
     checklist_saved: "Checklist saved.",
     checklist_saved_title: "Saved",
     status_pending: "Not started",
@@ -1020,6 +1034,8 @@ const I18N = {
     backup_running: "Generating…",
     backup_done: "Backup generated and emailed.",
     backup_done_local: "Backup generated (email not configured).",
+    backup_done_noemail: "Backup generated but email failed: {note}",
+    backup_err: "Backup failed: {msg}",
     backup_schedule: "Schedule",
     backup_next: "Next run",
     backup_last: "Last run",
@@ -2822,6 +2838,9 @@ function renderMecoView() {
           <button type="button" class="meco-link-del" data-link-del="${i}" title="${esc(t("cl_link_remove"))}" aria-label="${esc(t("cl_link_remove"))}" hidden>🗑</button>
         </div>
         <input class="input meco-link-input" data-tidx="${i}" data-k="link" placeholder="${esc(t("cl_link_placeholder"))}" autocomplete="off" spellcheck="false" hidden>
+        <div class="meco-xl" data-xl="${i}">
+          <button type="button" class="meco-link-add" data-tidx="${i}" data-k="links-add" title="${esc(t("cl_link_add"))}" aria-label="${esc(t("cl_link_add"))}">${esc(t("cl_link_add_txt"))}</button>
+        </div>
         <input class="input" data-tidx="${i}" data-k="comments" placeholder="${esc(t("meco_col_commentaires"))}">
       </td>
     </tr>`;
@@ -2939,6 +2958,9 @@ function renderIngeniousView() {
           <button type="button" class="meco-link-del" data-link-del="${i}" title="${esc(t("cl_link_remove"))}" aria-label="${esc(t("cl_link_remove"))}" hidden>🗑</button>
         </div>
         <input class="input meco-link-input" data-tidx="${i}" data-k="link" placeholder="${esc(t("cl_link_placeholder"))}" autocomplete="off" spellcheck="false" hidden>
+        <div class="meco-xl" data-xl="${i}">
+          <button type="button" class="meco-link-add" data-tidx="${i}" data-k="links-add" title="${esc(t("cl_link_add"))}" aria-label="${esc(t("cl_link_add"))}">${esc(t("cl_link_add_txt"))}</button>
+        </div>
         <input class="input" data-tidx="${i}" data-k="comments" placeholder="${esc(t("meco_col_commentaires"))}">
       </td>
     </tr>`;
@@ -3055,6 +3077,9 @@ function renderNavitaView() {
           <button type="button" class="meco-link-del" data-link-del="${i}" title="${esc(t("cl_link_remove"))}" aria-label="${esc(t("cl_link_remove"))}" hidden>🗑</button>
         </div>
         <input class="input meco-link-input" data-tidx="${i}" data-k="link" placeholder="${esc(t("cl_link_placeholder"))}" autocomplete="off" spellcheck="false" hidden>
+        <div class="meco-xl" data-xl="${i}">
+          <button type="button" class="meco-link-add" data-tidx="${i}" data-k="links-add" title="${esc(t("cl_link_add"))}" aria-label="${esc(t("cl_link_add"))}">${esc(t("cl_link_add_txt"))}</button>
+        </div>
         <input class="input" data-tidx="${i}" data-k="comments" placeholder="${esc(t("meco_col_commentaires"))}">
       </td>
     </tr>`;
@@ -3171,6 +3196,9 @@ function renderMicotaView() {
           <button type="button" class="meco-link-del" data-link-del="${i}" title="${esc(t("cl_link_remove"))}" aria-label="${esc(t("cl_link_remove"))}" hidden>🗑</button>
         </div>
         <input class="input meco-link-input" data-tidx="${i}" data-k="link" placeholder="${esc(t("cl_link_placeholder"))}" autocomplete="off" spellcheck="false" hidden>
+        <div class="meco-xl" data-xl="${i}">
+          <button type="button" class="meco-link-add" data-tidx="${i}" data-k="links-add" title="${esc(t("cl_link_add"))}" aria-label="${esc(t("cl_link_add"))}">${esc(t("cl_link_add_txt"))}</button>
+        </div>
         <input class="input" data-tidx="${i}" data-k="comments" value="${esc(defComment)}" placeholder="${esc(t("meco_col_commentaires"))}">
       </td>
     </tr>`;
@@ -3329,6 +3357,31 @@ function wireViewLinkEditor(appSel, persist) {
     persist();
   }, true);
   app.addEventListener("click", (e) => {
+    const addBtn = e.target && e.target.closest ? e.target.closest("[data-k='links-add']") : null;
+    if (addBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const i = Number(addBtn.dataset.tidx);
+      const box = app.querySelector('[data-xl="' + i + '"]');
+      if (box) {
+        const wrap = document.createElement("div");
+        wrap.innerHTML = mecoExtraRowHTML(i, box.querySelectorAll(".meco-xl-row").length, "");
+        box.insertBefore(wrap.firstElementChild, box.lastElementChild);
+        const inp = box.querySelector('[data-k="links"][data-lki="' + (box.querySelectorAll(".meco-xl-row").length - 1) + '"]');
+        if (inp) { inp.focus(); inp.select(); }
+      }
+      persist();
+      return;
+    }
+    const delBtn = e.target && e.target.closest ? e.target.closest("[data-k='links-del']") : null;
+    if (delBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const rowEl = delBtn.closest(".meco-xl-row");
+      if (rowEl) rowEl.remove();
+      persist();
+      return;
+    }
     const btn = e.target && e.target.closest ? e.target.closest("[data-link-del]") : null;
     if (!btn) return;
     e.preventDefault();
@@ -3402,11 +3455,14 @@ function readViewBody(def) {
       const cm = tr.querySelector('[data-k="comments"]');
       const ln = tr.querySelector(def.linkSel);
       const li = tr.querySelector('[data-k="link"]');
+      const extra = [];
+      tr.querySelectorAll('[data-k="links"]').forEach((el) => extra.push(el.value || ""));
       tasks.push({
         key: def.order[i] || "",
         status: st ? !!st.checked : false,
         comments: cm ? cm.value : "",
         link: li ? String(li.value || "") : (ln ? (ln.dataset.link || "") : ""),
+        extraLinks: extra,
       });
     });
   }
@@ -3458,6 +3514,16 @@ function loadViewDraft(def, form) {
     if (lbl) lbl.textContent = t.link || "";
     const del = tr.querySelector("[data-link-del]");
     if (del) del.hidden = !t.link;
+    const box = tr.querySelector('[data-xl="' + i + '"]');
+    if (box) {
+      box.querySelectorAll(".meco-xl-row").forEach((r) => r.remove());
+      (Array.isArray(t.extraLinks) ? t.extraLinks : []).forEach((x, li) => {
+        if (String(x || "").trim() === "") return;
+        const wrap = document.createElement("div");
+        wrap.innerHTML = mecoExtraRowHTML(i, li, x);
+        box.insertBefore(wrap.firstElementChild, box.lastElementChild);
+      });
+    }
   });
 }
 
@@ -3507,6 +3573,9 @@ function resetViewForm(def) {
     document.querySelectorAll(def.tableSel + " [data-link-del]").forEach((el) => {
       el.hidden = true;
     });
+    document.querySelectorAll(def.tableSel + " [data-xl]").forEach((box) => {
+      box.querySelectorAll(".meco-xl-row").forEach((r) => r.remove());
+    });
   }
   state[def.draftKey] = null;
   localStorage.removeItem("si_" + def.draftKey);
@@ -3544,13 +3613,16 @@ async function saveViewToServer(def) {
   };
   const items = data.tasks.map((tk, i) => {
     const info = def.info[tk.key] || {};
+    const list = [tk.link || "", ...(tk.extraLinks || [])]
+      .map((x) => String(x || "").trim()).filter(Boolean);
     return {
       task_key: tk.key,
       task_label_fr: info.fr || tk.key,
       task_label_en: info.en || tk.key,
       status: tk.status ? "done" : "pending",
       notes: tk.comments || "",
-      link: tk.link || "",
+      link: list[0] || "",
+      links: list,
       meta: JSON.stringify({ on_rail: !!f.on_rail, eta_note: String(f.eta_note || "") }),
       position: i,
     };
@@ -3980,7 +4052,7 @@ async function openBackupModal() {
       const st = await api("/api/backup/status");
       renderBackupStatus(statusEl, st);
     } catch (e) {
-      statusEl.innerHTML = `<div class="alert err">${esc(e.message)}</div>`;
+      statusEl.innerHTML = `<div class="alert err">${esc(t("backup_err", { msg: e.message }))}</div>`;
     }
   };
   dlBtn.addEventListener("click", async () => {
@@ -4007,11 +4079,16 @@ async function openBackupModal() {
     statusEl.innerHTML = `<span class="bk-spin"></span> ${esc(t("backup_running"))}`;
     try {
       const res = await api("/api/backup/now", "POST", {});
-      if (res.ok) toast(res.emailed ? t("backup_done") : t("backup_done_local"));
-      else toast(t("save_err", { msg: (res && res.error) || "backup failed" }));
+      if (res.ok) {
+        if (res.emailed) toast(t("backup_done"));
+        else if (res.email_note) toast(t("backup_done_noemail", { note: res.email_note }));
+        else toast(t("backup_done_local"));
+      } else {
+        toast(t("backup_err", { msg: (res && res.error) || "backup failed" }));
+      }
       await loadStatus();
     } catch (e) {
-      statusEl.innerHTML = `<div class="alert err">${esc(e.message)}</div>`;
+      statusEl.innerHTML = `<div class="alert err">${esc(t("backup_err", { msg: e.message }))}</div>`;
     }
     busy(runBtn, false);
   });
@@ -4084,11 +4161,15 @@ async function openImportModal(row) {
           <div class="field" data-core="1"><label>${esc(t("field_container"))}</label><input class="input" name="container" value="${esc(r.container)}"></div>
           <div class="field" data-core="1"><label>${esc(t("field_etd"))}</label><input class="input" name="etd" type="date" value="${esc(r.etd || "")}"></div>
           <div class="field" data-core="1"><label>${esc(t("field_eta"))}</label><input class="input" name="eta" type="date" value="${esc(r.eta || "")}"></div>
-          <div class="full"><div class="field"><label>${esc(t("extra_title"))}</label>
-            <select class="select" id="add-info-type">
-              <option value="">${esc(t("extra_placeholder"))}</option>${addInfoOptions}
-            </select></div></div>
-          <div class="full" id="add-info-fields"></div>
+           <div class="full"><div class="field"><label>${esc(t("extra_title"))}</label>
+             <select class="select" id="add-info-type">
+               <option value="">${esc(t("extra_placeholder"))}</option>${addInfoOptions}
+             </select></div></div>
+           <div class="full"><div class="ai-custom" role="group" aria-label="${esc(t("extra_custom"))}">
+             <input class="input" id="add-info-custom" placeholder="${esc(t("custom_field_name"))}" autocomplete="off">
+             <button type="button" class="btn" data-act="ai-custom-add">${esc(t("custom_add_btn"))}</button>
+           </div></div>
+           <div class="full" id="add-info-fields"></div>
           <div class="full"><div class="field"><label>${esc(t("field_notes"))}</label><textarea class="textarea" rows="2" name="notes" data-rte-field>${esc(r.notes)}</textarea></div></div>
         </div>
         <div class="section-tag sec-gap" id="generic-cl-head">${esc(t("checklist_of"))}</div>
@@ -4213,10 +4294,19 @@ function buildMecoTasks(spec, cl) {
       done: item ? item.status === "done" : false,
       comments: item ? (item.notes || "") : (mt.defComment || ""),
       link: item ? (item.link || "") : "",
+      extraLinks: item && Array.isArray(item.links) ? item.links.slice(1) : [],
       onRail: !!(meta.on_rail),
       etaNote: meta.eta_note || "",
     };
   });
+}
+
+function mecoExtraRowHTML(tidx, lki, value) {
+  return `<div class="meco-xl-row">
+      <span class="cl-link-ico" title="${esc(t("cl_link_label"))}">🔗</span>
+      <input class="input meco-link-input" data-tidx="${tidx}" data-k="links" data-lki="${lki}" value="${esc(value || "")}" placeholder="${esc(t("cl_link_placeholder"))}" autocomplete="off" spellcheck="false">
+      <button type="button" class="meco-link-del2" data-tidx="${tidx}" data-k="links-del" data-lki="${lki}" title="${esc(t("cl_link_remove"))}" aria-label="${esc(t("cl_link_remove"))}">🗑</button>
+    </div>`;
 }
 
 function mecoTasksHTML(tasks) {
@@ -4238,6 +4328,9 @@ function mecoTasksHTML(tasks) {
           <button type="button" class="meco-link-del" data-link-del="${i}" title="${esc(t("cl_link_remove"))}" aria-label="${esc(t("cl_link_remove"))}" ${tk.link ? "" : "hidden"}>🗑</button>
         </div>
         <input class="input meco-link-input" data-tidx="${i}" data-k="link" value="${esc(tk.link || "")}" placeholder="${esc(t("cl_link_placeholder"))}" autocomplete="off" spellcheck="false" hidden>
+        <div class="meco-xl" data-xl="${i}">${(tk.extraLinks || []).map((x, li) => mecoExtraRowHTML(i, li, x)).join("")}
+          <button type="button" class="meco-link-add" data-tidx="${i}" data-k="links-add" title="${esc(t("cl_link_add"))}" aria-label="${esc(t("cl_link_add"))}">${esc(t("cl_link_add_txt"))}</button>
+        </div>
         <input class="input" data-k="comments" data-tidx="${i}" value="${esc(tk.comments || "")}" placeholder="${esc(t("cl_comments_placeholder"))}">${sub}</td>
     </tr>`;
   }).join("");
@@ -4252,27 +4345,36 @@ function sheetTasks() {
 }
 
 function mecoChecklistItems() {
-  const meco = (state.mecoTasks || []).map((tk, i) => ({
-    task_key: tk.key,
-    task_label_fr: tk.fr,
-    task_label_en: tk.en,
-    status: tk.done ? "done" : "pending",
-    notes: tk.comments || "",
-    link: tk.link || "",
-    meta: JSON.stringify({ on_rail: !!tk.onRail, eta_note: tk.etaNote || "" }),
-    position: i,
-  }));
+  const meco = (state.mecoTasks || []).map((tk, i) => {
+    const list = [String(tk.link || "").trim(), ...(tk.extraLinks || [])]
+      .map((x) => String(x || "").trim()).filter(Boolean);
+    return {
+      task_key: tk.key,
+      task_label_fr: tk.fr,
+      task_label_en: tk.en,
+      status: tk.done ? "done" : "pending",
+      notes: tk.comments || "",
+      link: list[0] || "",
+      links: list,
+      meta: JSON.stringify({ on_rail: !!tk.onRail, eta_note: tk.etaNote || "" }),
+      position: i,
+    };
+  });
   const legacy = (state.clChecklist || [])
     .filter((it) => !sheetTasks().some((mt) => mt.key === it.task_key))
-    .map((it, i) => ({
-      task_key: it.task_key || "",
-      task_label_fr: it.task_label_fr || "",
-      task_label_en: it.task_label_en || "",
-      status: it.status,
-      notes: it.notes || "",
-      link: it.link || "",
-      position: meco.length + i,
-    }));
+    .map((it, i) => {
+      const lk = linkListPayload(it);
+      return {
+        task_key: it.task_key || "",
+        task_label_fr: it.task_label_fr || "",
+        task_label_en: it.task_label_en || "",
+        status: it.status,
+        notes: it.notes || "",
+        link: lk.link,
+        links: lk.links,
+        position: meco.length + i,
+      };
+    });
   return [...meco, ...legacy];
 }
 
@@ -4307,6 +4409,9 @@ function setupSheetEditor(m) {
     else if (el.dataset.k === "link") {
       state.mecoTasks[idx].link = el.value;
       refreshLink(el);
+    } else if (el.dataset.k === "links") {
+      state.mecoTasks[idx].extraLinks = state.mecoTasks[idx].extraLinks || [];
+      state.mecoTasks[idx].extraLinks[Number(el.dataset.lki)] = el.value;
     }
   });
   block.addEventListener("keydown", (e) => {
@@ -4330,6 +4435,42 @@ function setupSheetEditor(m) {
     el.hidden = true;
   }, true);
   block.addEventListener("click", (e) => {
+    const form = block.querySelector("form") || block.closest("form");
+    const addBtn = e.target && e.target.closest ? e.target.closest("[data-k='links-add']") : null;
+    if (addBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const idx = Number(addBtn.dataset.tidx);
+      if (state.mecoTasks[idx]) {
+        state.mecoTasks[idx].extraLinks = state.mecoTasks[idx].extraLinks || [];
+        state.mecoTasks[idx].extraLinks.push("");
+        const box = block.querySelector(`[data-xl="${idx}"]`);
+        if (box) {
+          const wrap = document.createElement("div");
+          wrap.innerHTML = mecoExtraRowHTML(idx, state.mecoTasks[idx].extraLinks.length - 1, "");
+          box.insertBefore(wrap.firstElementChild, box.lastElementChild);
+          const inp = box.querySelector('[data-k="links"][data-lki="' + (state.mecoTasks[idx].extraLinks.length - 1) + '"]');
+          if (inp) { inp.focus(); inp.select(); }
+        }
+      }
+      if (form) form.dispatchEvent(new Event("input", { bubbles: true }));
+      return;
+    }
+    const delBtn = e.target && e.target.closest ? e.target.closest("[data-k='links-del']") : null;
+    if (delBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const idx = Number(delBtn.dataset.tidx);
+      const lki = Number(delBtn.dataset.lki);
+      if (state.mecoTasks[idx]) {
+        state.mecoTasks[idx].extraLinks = state.mecoTasks[idx].extraLinks || [];
+        state.mecoTasks[idx].extraLinks.splice(lki, 1);
+        const rowEl = delBtn.closest(".meco-xl-row");
+        if (rowEl) rowEl.remove();
+      }
+      if (form) form.dispatchEvent(new Event("input", { bubbles: true }));
+      return;
+    }
     const btn = e.target && e.target.closest ? e.target.closest("[data-link-del]") : null;
     if (!btn) return;
     e.preventDefault();
@@ -4458,6 +4599,24 @@ function linkHref(v) {
   return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(s) ? s : "https://" + s;
 }
 
+function linksOf(it) {
+  // Normalise vers une liste de URLs : prefere `links` (array), sinon adapte
+  // l'ancien champ mono-valeur `link` (plus aucune perte ni casse). La liste
+  // brute est conservee telle quelle (y compris les champs vides en cours de
+  // saisie) pour que la UI reflete exactement les lignes stockees.
+  if (it && Array.isArray(it.links)) {
+    return it.links.map((x) => (typeof x === "string" ? x.trim() : ""));
+  }
+  const v = it && it.link != null ? String(it.link).trim() : "";
+  return v ? [v] : [];
+}
+
+function linkListPayload(tk) {
+  // Construit le payload a envoyer au serveur : chaines non-vides uniquement.
+  const arr = linksOf(tk).filter((s) => s.length > 0);
+  return { link: arr[0] || "", links: arr };
+}
+
 function linkPreviewHTML(v) {
   const s = String(v || "").trim();
   return s ? `🔗 <a href="${esc(linkHref(s))}" target="_blank" rel="noopener">${esc(s)}</a>` : "";
@@ -4474,13 +4633,26 @@ function checklistRowHTML(it, idx) {
       <div class="tt">${esc(activeLabel(it))}</div>
       ${it.task_key === "dropbox" || it.task_key === "api" ? `<div style="font-size:11px;color:var(--muted);font-weight:700">${it.task_key === "dropbox" ? "☁ DROPBOX" : "🔌 API"}</div>` : ""}
       <label class="cl-field-label">${esc(t("cl_link_label"))}</label>
-      <input class="input" data-field="link" data-idx="${idx}" value="${esc(it.link || "")}" placeholder="${esc(t("cl_link_placeholder"))}">
-      <div class="link-preview" data-link-preview="${idx}">${linkPreviewHTML(it.link)}</div>
+      ${linkRowsHTML(it, idx)}
       <label class="cl-field-label">${esc(t("cl_comments_label"))}</label>
       <input class="input" data-field="comments" data-idx="${idx}" value="${esc(it.notes || "")}" placeholder="${esc(t("cl_comments_placeholder"))}">
     </div>
     <button type="button" class="btn xsmall danger" data-act="del-task" data-idx="${idx}">✕</button>
   </li>`;
+}
+
+function linkRowsHTML(it, idx) {
+  const lks = linksOf(it);
+  const list = lks.length ? lks : [""];
+  return list.map((v, li) => `<div>
+      <div class="cl-link-row">
+        <span class="cl-link-ico" title="${esc(t("cl_link_label"))}">🔗</span>
+        <input class="input" data-field="link" data-idx="${idx}" data-lki="${li}" value="${esc(v || "")}" placeholder="${esc(t("cl_link_placeholder"))}" autocomplete="off" spellcheck="false">
+        <button type="button" class="btn xsmall danger cl-link-del" data-act="del-link" data-idx="${idx}" data-lki="${li}" title="${esc(t("cl_link_remove"))}" aria-label="${esc(t("cl_link_remove"))}" ${(v || li > 0) ? "" : "hidden"}>🗑</button>
+      </div>
+      <div class="link-preview" data-link-preview="${idx}-${li}">${linkPreviewHTML(v)}</div>
+    </div>`).join("") +
+    `<button type="button" class="btn ghost xsmall cl-link-add" data-act="add-link" data-idx="${idx}" title="${esc(t("cl_link_add"))}" aria-label="${esc(t("cl_link_add"))}">${esc(t("cl_link_add_txt"))}</button>`;
 }
 
 function setupChecklistEditor(m) {
@@ -4504,6 +4676,31 @@ function setupChecklistEditor(m) {
     } else if (act === "del-task") {
       state.clChecklist.splice(Number(b.dataset.idx), 1);
       renderChecklistBody(m);
+      form.dispatchEvent(new Event("input", { bubbles: true }));
+    } else if (act === "del-link") {
+      const idx = Number(b.dataset.idx);
+      const lki = Number(b.dataset.lki);
+      const item = state.clChecklist[idx];
+      if (!item) return;
+      const arr = linksOf(item);
+      arr.splice(lki, 1);
+      item.links = arr;
+      renderChecklistBody(m);
+      form.dispatchEvent(new Event("input", { bubbles: true }));
+    } else if (act === "add-link") {
+      const idx = Number(b.dataset.idx);
+      const item = state.clChecklist[idx];
+      if (!item) return;
+      const base = (Array.isArray(item.links) && item.links.length
+        ? item.links.slice()
+        : (linksOf(item).length ? linksOf(item) : [""]));
+      base.push("");
+      item.links = base;
+      renderChecklistBody(m);
+      const inputs = m.querySelectorAll(`#cl-area [data-idx="${idx}"][data-field="link"]`);
+      const last = inputs[inputs.length - 1];
+      if (last) { last.focus(); last.select(); }
+      form.dispatchEvent(new Event("input", { bubbles: true }));
     } else if (act === "set-task-status") {
       const idx = Number(b.dataset.idx);
       state.clChecklist[idx].status = b.dataset.status;
@@ -4523,8 +4720,15 @@ function setupChecklistEditor(m) {
     const idx = Number(e.target.dataset.idx);
     if (isNaN(idx) || !state.clChecklist[idx]) return;
     if (e.target.dataset.field === "link") {
-      state.clChecklist[idx].link = e.target.value;
-      updateLinkPreview(m, idx, e.target.value);
+      const lki = Number(e.target.dataset.lki);
+      state.clChecklist[idx].links = linksOf(state.clChecklist[idx]);
+      if (!isNaN(lki)) {
+        state.clChecklist[idx].links[lki] = e.target.value;
+        updateLinkPreview(m, idx, lki, e.target.value);
+        const row = e.target.closest(".cl-link-row");
+        const trashBtn = row && row.querySelector('[data-act="del-link"]');
+        if (trashBtn && String(e.target.value || "").trim()) trashBtn.hidden = false;
+      }
     } else if (e.target.dataset.field === "comments") {
       state.clChecklist[idx].notes = e.target.value;
     }
@@ -4572,10 +4776,10 @@ function addCustomTask(m) {
   renderChecklistBody(m);
 }
 
-function updateLinkPreview(m, idx, value) {
+function updateLinkPreview(m, idx, lki, value) {
   const area = m.querySelector("#cl-area");
   if (!area) return;
-  const wrap = area.querySelector(`[data-link-preview="${idx}"]`);
+  const wrap = area.querySelector(`[data-link-preview="${idx}-${lki}"]`);
   if (!wrap) return;
   wrap.innerHTML = linkPreviewHTML(value);
 }
@@ -4602,15 +4806,19 @@ function buildCardPayload(m) {
   else payload.pallets = Number(payload.pallets);
   const items = state.mecoMode
     ? mecoChecklistItems()
-    : (state.clChecklist || []).map((it) => ({
-        task_key: it.task_key || "",
-        task_label_fr: it.task_label_fr || "",
-        task_label_en: it.task_label_en || "",
-        status: it.status,
-        notes: it.notes || "",
-        link: it.link || "",
-        position: it.position,
-      }));
+    : (state.clChecklist || []).map((it) => {
+        const lk = linkListPayload(it);
+        return {
+          task_key: it.task_key || "",
+          task_label_fr: it.task_label_fr || "",
+          task_label_en: it.task_label_en || "",
+          status: it.status,
+          notes: it.notes || "",
+          link: lk.link,
+          links: lk.links,
+          position: it.position,
+        };
+      });
   return { payload, items };
 }
 
@@ -4787,8 +4995,9 @@ function closeModal() {
 }
 
 function addInfoRowHTML(it) {
+  const label = AI_KEYS.includes(it.type) ? t("ai_" + it.type) : it.type;
   return `<div class="ai-row">
-    <span class="ai-key">${esc(t("ai_" + it.type))}</span>
+    <span class="ai-key">${esc(label)}</span>
     <input class="input" data-ai-type="${esc(it.type)}" value="${esc(it.value)}" placeholder="${esc(t("extra_value_placeholder"))}">
     <button type="button" class="btn xsmall danger" data-act="ai-remove" data-key="${esc(it.type)}" title="${esc(t("extra_remove"))}">✕</button>
   </div>`;
@@ -4824,6 +5033,30 @@ function setupExtraInfo(m) {
     sel.value = "";
     renderAddInfoFields(m);
     refreshAddInfoOptions(m);
+  });
+  const custInput = m.querySelector("#add-info-custom");
+  const custBtn = m.querySelector('[data-act="ai-custom-add"]');
+  const addCustom = () => {
+    const name = (custInput ? custInput.value : "").trim();
+    if (!name) {
+      toast(t("extra_need_name"));
+      return;
+    }
+    if ((state.addInfo || []).some((x) => x.type.trim().toLowerCase() === name.toLowerCase())) {
+      toast(t("extra_dup"));
+      return;
+    }
+    state.addInfo.push({ type: name, value: "" });
+    if (custInput) custInput.value = "";
+    renderAddInfoFields(m);
+    refreshAddInfoOptions(m);
+  };
+  if (custBtn) custBtn.addEventListener("click", addCustom);
+  if (custInput) custInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addCustom();
+    }
   });
   if (box) {
     box.addEventListener("input", (e) => {
@@ -5443,13 +5676,36 @@ function createRichTextEditor(container, opts) {
         toast(T("rte_file_too_big"));
         return;
       }
+      const isImg = !!(f.type && f.type.indexOf("image/") === 0);
       const rd = new FileReader();
-      if (f.type && f.type.indexOf("image/") === 0) {
-        rd.onload = () => { run("insertImage", rd.result); };
-      } else {
-        rd.onload = () => { run("insertHTML", '<a href="' + rd.result + '" target="_blank" rel="noopener">' + esc(f.name) + "</a>"); };
-      }
       rd.onerror = () => { toast(T("rte_file_too_big")); };
+      rd.onload = () => {
+        const dataUrl = String(rd.result || "");
+        if (isImg) {
+          run("insertImage", dataUrl);
+        } else {
+          run("insertHTML", '<a href="' + dataUrl + '" target="_blank" rel="noopener">' + esc(f.name) + "</a>");
+        }
+        if (!(f instanceof Blob)) return;
+        try {
+          const qsrc = isImg ? "src" : "href";
+          const targetSel = isImg ? "img" : "a";
+          const inserted = Array.prototype.slice.call(editor.querySelectorAll(targetSel))
+            .filter((el) => el.getAttribute(qsrc) === dataUrl);
+          if (!inserted.length) return;
+          const fd = new FormData();
+          fd.append("file", f, f.name);
+          fetch("/api/rte/upload", { method: "POST", body: fd })
+            .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+            .then((j) => {
+              if (j && j.url) {
+                inserted.forEach((el) => el.setAttribute(qsrc, j.url));
+                fireInput();
+              }
+            })
+            .catch(() => {});
+        } catch (_) {}
+      };
       rd.readAsDataURL(f);
     });
   });

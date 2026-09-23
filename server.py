@@ -1000,6 +1000,13 @@ class App(BaseHTTPRequestHandler):
         if supplier_id:
             conds.append("i.supplier_id = ?")
             params.append(int(supplier_id))
+        locked = (qs.get("locked") or [None])[0]
+        # Filtre « Archives » : locked=1 -> uniquement les fiches verrouillees ;
+        # locked=0 -> uniquement les fiches actives (jamais les verrouillees).
+        if locked == "1":
+            conds.append("COALESCE(i.locked,0) = 1")
+        elif locked == "0":
+            conds.append("COALESCE(i.locked,0) = 0")
         if search:
             conds.append("(i.po_number LIKE ? OR i.inbsip LIKE ? OR i.container LIKE ? OR i.doc_number LIKE ? OR s.name LIKE ?)")
             like = f"%{search}%"
@@ -2099,6 +2106,17 @@ class App(BaseHTTPRequestHandler):
         return "FI%06d" % ((max_n or 0) + 1)
 
     def do_update_import(self, conn, imp_id, body, user=None):
+        # Garde « Archives » : une fiche verrouillée (locked=1) est en lecture seule
+        # stricte. Le seul passage autorise est l'action unlock qui passe par
+        # l'endpoint dedie /api/imports/<id>/lock (do_toggle_lock), jamais par un
+        # update generique. On rejette donc toute modification ici (RFC 422).
+        row = conn.execute("SELECT locked FROM imports WHERE id=?", (imp_id,)).fetchone()
+        if not row:
+            self.error(HTTPStatus.NOT_FOUND, "import not found")
+            return
+        if row["locked"]:
+            self.error(HTTPStatus.UNPROCESSABLE_ENTITY, "record_locked_update")
+            return
         fields = self.clean_fields(body, ["origin", "port_of_loading", "supplier_id", "destination", "port_of_discharge",
                                            "po_number", "inbsip", "doc_number", "pallets", "transitaire_bol",
                                            "container", "etd", "eta", "eta_van", "eta_dest",
@@ -2445,7 +2463,12 @@ class App(BaseHTTPRequestHandler):
             added.append(res)
         self.json_out(200, {"ok": True, "documents": added})
 
-    def do_delete_import(self, conn, imp_id):
+    def do_delete_import(self, conn, imp_id, user=None):
+        # Garde « Archives » : on ne supprime pas une fiche verrouillée.
+        row = conn.execute("SELECT locked FROM imports WHERE id=?", (imp_id,)).fetchone()
+        if row and row["locked"]:
+            self.error(HTTPStatus.UNPROCESSABLE_ENTITY, "record_locked_delete")
+            return
         files = conn.execute(
             "SELECT stored_name FROM attachments WHERE import_id=?", (imp_id,)
         ).fetchall()

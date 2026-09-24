@@ -425,7 +425,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 
 /* ---------- sortable headers ---------- */
 th.sortable { padding: 0; }
-th.sortable .sort-btn { width: 100%; display: inline-flex; justify-content: flex-start; gap: 5px; align-items: center; background: none; border: none; margin: 0; padding: 10px 12px; cursor: pointer; font: inherit; color: inherit; white-space: nowrap; }
+th.sortable .sort-btn { width: 100%; display: inline-flex; justify-content: center; gap: 5px; align-items: center; background: none; border: none; margin: 0; padding: 10px 12px; cursor: pointer; font: inherit; color: inherit; white-space: nowrap; }
 th.sortable .sort-btn:hover { color: var(--primary); }
 .sort-arrow { font-size: 11px; opacity: .55; user-select: none; }
 th.sortable.active .sort-arrow { opacity: 1; color: var(--primary); }
@@ -433,12 +433,12 @@ th.sortable.active .sort-arrow { opacity: 1; color: var(--primary); }
 /* ---------- tables ---------- */
 .table-wrap { overflow-x: auto; }
 table.tbl { width: 100%; border-collapse: collapse; }
-.tbl th, .tbl td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.tbl th, .tbl td { text-align: center; vertical-align: middle; padding: 10px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .tbl th { font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); background: var(--surface2); }
 .tbl td { font-size: 13px; }
 .tbl tbody tr:hover { background: var(--surface2); }
 .tbl .clickable { cursor: pointer; }
-.tbl .num-md { text-align: right; }
+.tbl .num-md { text-align: center; }
 
 /* ---------- Tableau de bord : table fluide + colonnes redimensionnables ----------
    Le tableau centralise toutes les donnees : il occupe toute la largeur, sans
@@ -447,7 +447,7 @@ table.tbl { width: 100%; border-collapse: collapse; }
    ne sont pas affectees. */
 .table-wrap.fluid { overflow-x: auto; }
 table.tbl.imports-table { table-layout: fixed; }
-.imports-table th, .imports-table td { white-space: normal; overflow-wrap: anywhere; overflow: hidden; vertical-align: middle; }
+.imports-table th, .imports-table td { text-align: center; white-space: normal; overflow-wrap: anywhere; overflow: hidden; vertical-align: middle; }
 .imports-table th { position: relative; }
 .imports-table th.sortable .sort-btn { padding-right: 20px; }
 .imports-table .col-resizer { position: absolute; top: 0; right: -3px; width: 8px; height: 100%; z-index: 3; cursor: col-resize; }
@@ -758,8 +758,8 @@ h2.page-title { color: var(--primary); margin-bottom: 16px; font-size: 19px; }
 .chat-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 .chat-chart-table { overflow: hidden; }
 .chat-chart-table table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
-.chat-chart-table th { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 10px; text-transform: uppercase; }
-.chat-chart-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); }
+.chat-chart-table th { text-align: center; padding: 5px 8px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.chat-chart-table td { text-align: center; padding: 5px 8px; border-bottom: 1px solid var(--border); }
 .chat-chart-table tr:last-child td { border-bottom: none; }
 
 /* ---- Rich Text Editor (WYSIWYG) global : deux barres d'outils dyn. ---- */
@@ -798,8 +798,8 @@ textarea, input[type="text"], input[type="search"], input:not([type]), [contente
 .meco-qc input { accent-color: var(--primary); width: 15px; height: 15px; cursor: pointer; }
 
 table.meco-table { width: 100%; border-collapse: collapse; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface); }
-.meco-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 9px 12px; border-bottom: 1px solid var(--border); background: var(--surface2); }
-.meco-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.meco-table th { text-align: center; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 9px 12px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+.meco-table td { text-align: center; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .meco-table tr:last-child td { border-bottom: none; }
 .meco-task-name { font-weight: 600; font-size: 13px; color: var(--text); }
 .meco-status { width: 1%; text-align: center; }

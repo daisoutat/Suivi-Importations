@@ -877,7 +877,10 @@ class App(BaseHTTPRequestHandler):
             elif parts[1:] == ["backup"]:
                 if self.require_admin() is None:
                     return
-                self.do_backup(conn)
+                try:
+                    self.do_backup(conn)
+                except Exception as exc:
+                    self.error(HTTPStatus.INTERNAL_SERVER_ERROR, "backup failed: %s" % exc)
             elif parts[1:] == ["reconcile", "runs"]:
                 self.list_reconcile_runs(conn)
             elif len(parts) == 4 and parts[1] == "reconcile" and parts[2] == "runs":
@@ -1552,7 +1555,10 @@ class App(BaseHTTPRequestHandler):
             elif parts[1:] == ["backup", "now"]:
                 if self.require_admin() is None:
                     return
-                res = backup_scheduler.run_snapshot()
+                try:
+                    res = backup_scheduler.run_snapshot()
+                except Exception as exc:
+                    res = {"ok": False, "error": "backup failed: %s" % exc}
                 self.json_out(200, res)
             elif len(parts) == 4 and parts[1] == "imports" and parts[3] == "attachments":
                 self.do_upload_attachments(conn, int(parts[2]), token)

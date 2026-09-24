@@ -504,6 +504,8 @@ const I18N = {
     backup_done_local: "Sauvegarde générée (courriel non configuré).",
     backup_done_noemail: "Sauvegarde générée mais envoi par courriel échoué : {note}",
     backup_err: "Sauvegarde impossible : {msg}",
+    backup_err_smtp: "Configuration SMTP manquante ou invalide (voir Paramètres / .env)",
+    backup_err_network: "Serveur injoignable ({msg})",
     backup_schedule: "Planificateur",
     backup_next: "Prochaine exécution",
     backup_last: "Dernière exécution",
@@ -1052,6 +1054,8 @@ const I18N = {
     backup_done_local: "Backup generated (email not configured).",
     backup_done_noemail: "Backup generated but email failed: {note}",
     backup_err: "Backup failed: {msg}",
+    backup_err_smtp: "SMTP configuration missing or invalid (see Settings / .env)",
+    backup_err_network: "Server unreachable ({msg})",
     backup_schedule: "Schedule",
     backup_next: "Next run",
     backup_last: "Last run",
@@ -4146,7 +4150,13 @@ async function openBackupModal() {
       }
       await loadStatus();
     } catch (e) {
-      statusEl.innerHTML = `<div class="alert err">${esc(t("backup_err", { msg: e.message }))}</div>`;
+      const msg = String((e && e.message) || e || "");
+      const friendly = /501|not ?implemented|unsupported/i.test(msg)
+        ? t("backup_err_smtp")
+        : /fetch|network|load/i.test(msg)
+        ? t("backup_err_network", { msg })
+        : msg;
+      statusEl.innerHTML = `<div class="alert err">${esc(t("backup_err", { msg: friendly }))}</div>`;
     }
     busy(runBtn, false);
   });

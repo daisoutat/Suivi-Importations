@@ -6124,6 +6124,14 @@ document.addEventListener("click", async (e) => {
   }
   if (act === "row-edit") { closeRowMenus(); await openImportById(id); return; }
   if (act === "row-lock") { closeRowMenus(); await toggleImportLock(id); return; }
+  if (act === "unlock-card") {
+    const row = importById(id);
+    await api("/api/imports/" + id + "/lock", "PUT", { locked: false });
+    if (row) row.locked = 0;
+    toast(t("unlocked_ok"));
+    render();
+    return;
+  }
   if (act === "row-history") { closeRowMenus(); await openHistoryModal(id); return; }
   if (act === "row-documents") { closeRowMenus(); await openDocumentsModal(id); return; }
   if (act === "row-detail") { closeRowMenus(); await openDetailModal(id); return; }

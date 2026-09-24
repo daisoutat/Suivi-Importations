@@ -330,7 +330,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 }
 .icon-btn:hover { border-color: var(--primary2); color: var(--primary); }
 
-.content { padding: 24px; max-width: 1280px; width: 100%; }
+.content { padding: 24px; width: 100%; }
 
 /* ---------- dashboard ---------- */
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 22px; }
@@ -445,7 +445,7 @@ table.tbl { width: 100%; border-collapse: collapse; }
    scroll horizontal par defaut, et chaque entete peut etre redimensionnee a la
    souris (comme dans un tableur). Les autres tables (.tbl sans .imports-table)
    ne sont pas affectees. */
-.table-wrap.fluid { overflow-x: hidden; }
+.table-wrap.fluid { overflow-x: auto; }
 table.tbl.imports-table { table-layout: fixed; }
 .imports-table th, .imports-table td { white-space: normal; overflow-wrap: anywhere; overflow: hidden; vertical-align: middle; }
 .imports-table th { position: relative; }
@@ -1108,6 +1108,7 @@ table.tbl.notif-tbl td { vertical-align: middle; }
 /* ---------- tablette / petit laptop ---------- */
 @media (max-width: 1024px) {
   .content { padding: 18px; }
+  table.tbl.imports-table { min-width: 1000px; }
   .stat-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
   .supplier-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
   .detail-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }

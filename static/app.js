@@ -2611,7 +2611,7 @@ async function renderDashboard() {
   // Table entière (ex-vue "Importations") centralisée dans le Tableau de bord.
   const supFilter = state.supFilter || "";
   const search = state.search || "";
-  let rows = state.imports || [];
+  let rows = (state.imports || []).filter((i) => !i.locked);
   if (supFilter) rows = rows.filter((i) => i.supplier_id === Number(supFilter));
   if (search) rows = rows.filter((i) => matchesImport(i, search));
   rows = sortImports(rows);

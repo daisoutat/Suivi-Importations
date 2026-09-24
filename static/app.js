@@ -69,6 +69,14 @@ const I18N = {
     rec_saved_toast: "Réconciliation enregistrée dans la base de données.",
     rec_clear_toast: "Session de réconciliation réinitialisée. L'historique est conservé.",
     nav_settings: "Paramètres",
+    nav_archives: "Archives",
+    archives_title: "Archives",
+    archives_empty: "Aucune fiche verrouillée.",
+    archives_read_only: "Lecture seule",
+    archives_locked_on: "Fiche verrouillée",
+    unlock_card: "Déverrouiller",
+    unlocked_ok: "Fiche déverrouillée. Elle est de nouveau active sur le tableau de bord.",
+    lock_confirm: "Verrouiller cette fiche ? Elle sera déplacée dans les Archives et s'affichera en lecture seule.",
     nav_trash: "Corbeille",
     trash_title: "Corbeille",
     trash_empty: "La corbeille est vide.",
@@ -614,6 +622,14 @@ const I18N = {
     rec_saved_toast: "Reconciliation saved to the database.",
     rec_clear_toast: "Reconciliation session cleared. History is kept.",
     nav_settings: "Settings",
+    nav_archives: "Archives",
+    archives_title: "Archives",
+    archives_empty: "No locked records.",
+    archives_read_only: "Read-only",
+    archives_locked_on: "Record locked",
+    unlock_card: "Unlock",
+    unlocked_ok: "Record unlocked. It is active again on the dashboard.",
+    lock_confirm: "Lock this record? It will move to Archives and become read-only.",
     nav_trash: "Trash",
     trash_title: "Trash",
     trash_empty: "The trash is empty.",
@@ -1413,6 +1429,7 @@ function sidebarItems() {
     ["analytics", t("nav_analytics"), "📊", "nav"],
     ["backup", t("nav_backup"), "💾", "backup-open"],
     ["reconcile", t("nav_reconcile"), "⚖️", "nav"],
+    ["archives", t("nav_archives"), "🗄", "nav"],
     ["trash", t("nav_trash"), "🗑", "nav"],
     ["settings", t("nav_settings"), "⚙", "nav"],
   ];
@@ -2340,6 +2357,7 @@ async function render() {
     return;
   }
   if (page === "trash") return renderTrash();
+  if (page === "archives") return renderArchives();
   if (page === "settings") return renderSettings();
   if (page === "kanban") return renderKanban();
   if (page === "prediction") return renderPrediction();
@@ -2587,7 +2605,7 @@ async function renderDashboard() {
   };
   const colPanel = (k) => `panel collapsible${state.collapsed[k] ? " collapsed" : ""}`;
 
-  const counts = stateCounts(state.imports);
+  const counts = stateCounts(state.imports.filter((i) => !i.locked));
   const alerts = buildAlerts();
 
   // Table entière (ex-vue "Importations") centralisée dans le Tableau de bord.
@@ -2797,6 +2815,46 @@ async function renderTrash() {
       <tbody>${trashRows(rows)}</tbody></table></div>
     </div>`;
   document.getElementById("app").innerHTML = shell(t("nav_trash"), inner);
+}
+
+/* ---------------------------------------------------------------- archives */
+
+function archivesTableHead() {
+  return `<tr>
+    <th>${esc(t("supplier"))}</th>
+    <th>${esc(t("field_destination"))}</th>
+    <th>${esc(t("field_po"))}</th>
+    <th>${esc(t("field_container"))}</th>
+    <th>${esc(t("actions"))}</th>
+  </tr>`;
+}
+
+function archivesRows(rows) {
+  if (!rows.length) return `<tr><td colspan="5" class="empty">${esc(t("archives_empty"))}</td></tr>`;
+  return rows.map((r) => `<tr>
+    <td>${esc(r.supplier_name)}</td>
+    <td>${esc(r.destination)}</td>
+    <td>${[r.po_number, r.inbsip].filter(Boolean).join(" / ") || ""}</td>
+    <td>${esc(r.container)}</td>
+    <td>
+      <button class="btn small" data-act="unlock-card" data-id="${r.id}">${esc(t("unlock_card"))}</button>
+      <button class="btn small" data-act="row-view-locked" data-id="${r.id}">${esc(t("view"))}</button>
+    </td>
+  </tr>`).join("");
+}
+
+async function renderArchives() {
+  const res = await api("/api/imports?deleted=0&locked=1");
+  const rows = res.imports || [];
+  const inner = `
+    <div class="toolbar">
+      <h2 class="page-title" style="margin:0">${esc(t("archives_title"))} <span style="color:var(--muted);font-size:13px;font-weight:500">(${rows.length})</span></h2>
+    </div>
+    <div class="panel">
+      <div class="table-wrap"><table class="tbl"><thead>${archivesTableHead()}</thead>
+      <tbody>${archivesRows(rows)}</tbody></table></div>
+    </div>`;
+  document.getElementById("app").innerHTML = shell(t("nav_archives"), inner);
 }
 
 /* ---------------------------------------------------------------- meco view */

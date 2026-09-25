@@ -24,6 +24,7 @@ from xml.sax.saxutils import escape
 
 import ai
 import backup_scheduler
+import db
 import reconcile
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -294,11 +295,7 @@ def link_list_from_storage(raw, fallback=""):
 
 
 def db_conn():
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode = WAL")
-    return conn
+    return db.db_conn(DB_PATH)
 
 
 def init_db():
@@ -1803,23 +1800,34 @@ class App(BaseHTTPRequestHandler):
         tmpdb = tempfile.mktemp(prefix="radisson_backup_", suffix=".db")
         buf = BytesIO()
         try:
-            src = sqlite3.connect(DB_PATH)
-            try:
-                dst = sqlite3.connect(tmpdb)
+            if db.pg_enabled():
+                snapshot = db.export_snapshot(conn)
+                with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                    zf.writestr("radisson_snapshot.json",
+                                json.dumps(snapshot, ensure_ascii=False))
+                    for base_dir, _dirs, files in os.walk(ATTACH_DIR):
+                        for fn in files:
+                            full = os.path.join(base_dir, fn)
+                            if os.path.isfile(full):
+                                zf.write(full, arcname="attachments/" + fn)
+            else:
+                src = sqlite3.connect(DB_PATH)
                 try:
-                    src.backup(dst)
-                    dst.commit()
+                    dst = sqlite3.connect(tmpdb)
+                    try:
+                        src.backup(dst)
+                        dst.commit()
+                    finally:
+                        dst.close()
                 finally:
-                    dst.close()
-            finally:
-                src.close()
-            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-                zf.write(tmpdb, arcname="radisson.db")
-                for base_dir, _dirs, files in os.walk(ATTACH_DIR):
-                    for fn in files:
-                        full = os.path.join(base_dir, fn)
-                        if os.path.isfile(full):
-                            zf.write(full, arcname="attachments/" + fn)
+                    src.close()
+                with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                    zf.write(tmpdb, arcname="radisson.db")
+                    for base_dir, _dirs, files in os.walk(ATTACH_DIR):
+                        for fn in files:
+                            full = os.path.join(base_dir, fn)
+                            if os.path.isfile(full):
+                                zf.write(full, arcname="attachments/" + fn)
         finally:
             if os.path.isfile(tmpdb):
                 try:
@@ -1837,9 +1845,13 @@ class App(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def do_import_backup(self, conn):
-        """Restauration securisee d'une sauvegarde (.zip ou .db).
+        """Restauration securisee d'une sauvegarde (.zip, .db ou .json).
         L'ancienne base est conservee dans data/backups avant remplacement
-        (aucune perte) et les documents sont ajoutes sans rien supprimer."""
+        (aucune perte) et les documents sont ajoutes sans rien supprimer.
+
+        En mode PostgreSQL, un instantane (`radisson_snapshot.json`) OU une
+        ancienne base SQLite (.db) sont importes en copiant les tables dans un
+        ordre qui respecte les cles etrangeres, dans une transaction unique."""
         try:
             parts = self.read_upload_parts(max_size=64 * 1024 * 1024)
         except ValueError:
@@ -1857,8 +1869,17 @@ class App(BaseHTTPRequestHandler):
             return
         workdir = tempfile.mkdtemp(prefix="radisson_restore_")
         attachments = []
+        db_bytes = None
+        snapshot = None
         try:
-            if fname.endswith(".zip"):
+            if fname.endswith(".json"):
+                try:
+                    snapshot = json.loads(payload.decode("utf-8"))
+                except (ValueError, UnicodeDecodeError):
+                    self.error(HTTPStatus.BAD_REQUEST,
+                               "invalid backup: not a json snapshot")
+                    return
+            elif fname.endswith(".zip"):
                 try:
                     zf = zipfile.ZipFile(BytesIO(payload), "r")
                 except zipfile.BadZipFile:
@@ -1866,51 +1887,127 @@ class App(BaseHTTPRequestHandler):
                     return
                 with zf:
                     names = set(zf.namelist())
-                    if "radisson.db" not in names:
-                        self.error(HTTPStatus.BAD_REQUEST, "invalid backup: no database")
+                    if "radisson_snapshot.json" in names:
+                        try:
+                            snapshot = json.loads(
+                                zf.read("radisson_snapshot.json").decode("utf-8"))
+                        except (ValueError, UnicodeDecodeError):
+                            self.error(HTTPStatus.BAD_REQUEST,
+                                       "invalid backup: bad snapshot")
+                            return
+                    elif "radisson.db" in names:
+                        db_bytes = zf.read("radisson.db")
+                    else:
+                        self.error(HTTPStatus.BAD_REQUEST,
+                                   "invalid backup: no database")
                         return
-                    db_bytes = zf.read("radisson.db")
                     attachments = [
                         n[len("attachments/"):] for n in names
                         if n.startswith("attachments/") and not n.endswith("/")
                     ]
             else:
                 db_bytes = payload
-            tmpdb = os.path.join(workdir, "radisson.db")
-            with open(tmpdb, "wb") as fh:
-                fh.write(db_bytes)
-            try:
-                chk = sqlite3.connect(tmpdb)
+
+            if db.pg_enabled():
+                if snapshot is None and db_bytes is None:
+                    self.error(HTTPStatus.BAD_REQUEST, "file required")
+                    return
+                if snapshot is not None and (not isinstance(
+                        snapshot.get("tables"), dict)):
+                    self.error(HTTPStatus.BAD_REQUEST,
+                               "invalid backup: bad snapshot")
+                    return
+                safe_dir = os.path.join(DATA_DIR, "backups")
+                os.makedirs(safe_dir, exist_ok=True)
+                stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                conn.execute("PRAGMA wal_checkpoint(FULL)")
+                conn.commit()
                 try:
-                    row = chk.execute("PRAGMA quick_check").fetchone()
-                    if not row or row[0] != "ok":
-                        self.error(HTTPStatus.BAD_REQUEST, "invalid database file")
-                        return
-                    tables = set(r[0] for r in chk.execute(
-                        "SELECT name FROM sqlite_master WHERE type='table'").fetchall())
-                    if not {"imports", "checklist_items", "users"} <= tables:
-                        self.error(HTTPStatus.BAD_REQUEST, "invalid backup database")
-                        return
-                finally:
-                    chk.close()
-            except sqlite3.Error:
-                self.error(HTTPStatus.BAD_REQUEST, "invalid database file")
-                return
-            safe_dir = os.path.join(DATA_DIR, "backups")
-            os.makedirs(safe_dir, exist_ok=True)
-            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            conn.execute("PRAGMA wal_checkpoint(FULL)")
-            conn.commit()
-            shutil.copyfile(DB_PATH, os.path.join(safe_dir, "pre_restore_%s.db" % stamp))
-            with open(DB_PATH, "wb") as fh:
-                fh.write(db_bytes)
-            for suffix in ("-wal", "-shm"):
-                p = DB_PATH + suffix
-                if os.path.exists(p):
+                    pre = json.dumps(db.export_snapshot(conn), ensure_ascii=False)
+                    with open(os.path.join(
+                            safe_dir, "pre_restore_%s.json" % stamp), "wb") as fh:
+                        fh.write(pre.encode("utf-8"))
+                except OSError:
+                    pass
+                if snapshot is not None:
+                    db.apply_tables(conn, snapshot["tables"])
+                else:
+                    tmpdb = os.path.join(workdir, "radisson.db")
+                    with open(tmpdb, "wb") as fh:
+                        fh.write(db_bytes)
                     try:
-                        os.remove(p)
-                    except OSError:
-                        pass
+                        chk = sqlite3.connect(tmpdb)
+                        try:
+                            chk.row_factory = sqlite3.Row
+                            row = chk.execute("PRAGMA quick_check").fetchone()
+                            if not row or row[0] != "ok":
+                                self.error(HTTPStatus.BAD_REQUEST,
+                                           "invalid database file")
+                                return
+                            tables = set(r[0] for r in chk.execute(
+                                "SELECT name FROM sqlite_master WHERE "
+                                "type='table' AND name NOT LIKE 'sqlite_%'")
+                                .fetchall())
+                            if not {"imports", "checklist_items", "users"} <= tables:
+                                self.error(HTTPStatus.BAD_REQUEST,
+                                           "invalid backup database")
+                                return
+                            rows = {}
+                            for tname in sorted(tables):
+                                rows[tname] = [dict(r) for r in chk.execute(
+                                    'SELECT * FROM "%s"' % tname).fetchall()]
+                        finally:
+                            chk.close()
+                    except sqlite3.Error:
+                        self.error(HTTPStatus.BAD_REQUEST,
+                                   "invalid database file")
+                        return
+                    db.apply_tables(conn, rows)
+            else:
+                # --- Mode SQLite : remplacement du fichier (historique).
+                if db_bytes is None:
+                    self.error(HTTPStatus.BAD_REQUEST, "file required")
+                    return
+                tmpdb = os.path.join(workdir, "radisson.db")
+                with open(tmpdb, "wb") as fh:
+                    fh.write(db_bytes)
+                try:
+                    chk = sqlite3.connect(tmpdb)
+                    try:
+                        row = chk.execute("PRAGMA quick_check").fetchone()
+                        if not row or row[0] != "ok":
+                            self.error(HTTPStatus.BAD_REQUEST,
+                                       "invalid database file")
+                            return
+                        tables = set(r[0] for r in chk.execute(
+                            "SELECT name FROM sqlite_master WHERE "
+                            "type='table'").fetchall())
+                        if not {"imports", "checklist_items", "users"} <= tables:
+                            self.error(HTTPStatus.BAD_REQUEST,
+                                       "invalid backup database")
+                            return
+                    finally:
+                        chk.close()
+                except sqlite3.Error:
+                    self.error(HTTPStatus.BAD_REQUEST, "invalid database file")
+                    return
+                safe_dir = os.path.join(DATA_DIR, "backups")
+                os.makedirs(safe_dir, exist_ok=True)
+                stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                conn.execute("PRAGMA wal_checkpoint(FULL)")
+                conn.commit()
+                shutil.copyfile(
+                    DB_PATH, os.path.join(safe_dir, "pre_restore_%s.db" % stamp))
+                with open(DB_PATH, "wb") as fh:
+                    fh.write(db_bytes)
+                for suffix in ("-wal", "-shm"):
+                    p = DB_PATH + suffix
+                    if os.path.exists(p):
+                        try:
+                            os.remove(p)
+                        except OSError:
+                            pass
+
             if fname.endswith(".zip") and attachments:
                 with zipfile.ZipFile(BytesIO(payload), "r") as zf:
                     for n in attachments:
@@ -1919,13 +2016,20 @@ class App(BaseHTTPRequestHandler):
                             continue
                         with open(os.path.join(ATTACH_DIR, base_name), "wb") as fh:
                             fh.write(zf.read("attachments/" + n))
-            restored = sqlite3.connect(DB_PATH)
-            restored.row_factory = sqlite3.Row
-            try:
-                n = restored.execute("SELECT COUNT(*) AS n FROM imports").fetchone()["n"]
-            finally:
-                restored.close()
-            self.json_out(200, {"ok": True, "message": "backup restored", "imports": n})
+
+            if db.pg_enabled():
+                n = conn.execute("SELECT COUNT(*) AS n FROM imports").fetchone()["n"]
+                self.json_out(200, {"ok": True, "message": "backup restored",
+                                    "imports": n})
+            else:
+                restored = sqlite3.connect(DB_PATH)
+                restored.row_factory = sqlite3.Row
+                try:
+                    n = restored.execute("SELECT COUNT(*) AS n FROM imports").fetchone()["n"]
+                finally:
+                    restored.close()
+                self.json_out(200, {"ok": True, "message": "backup restored",
+                                    "imports": n})
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
 
@@ -2511,6 +2615,8 @@ class App(BaseHTTPRequestHandler):
         try:
             qs = parse_qs(parsed.query)
             self.handle_get(parsed.path, qs)
+        except db.DatabaseConnError as exc:
+            self.error(HTTPStatus.INTERNAL_SERVER_ERROR, exc.friendly())
         except (ValueError, KeyError):
             self.error(HTTPStatus.BAD_REQUEST, "bad request")
 
@@ -2518,6 +2624,8 @@ class App(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         try:
             self.handle_post(parsed.path)
+        except db.DatabaseConnError as exc:
+            self.error(HTTPStatus.INTERNAL_SERVER_ERROR, exc.friendly())
         except (ValueError, KeyError):
             self.error(HTTPStatus.BAD_REQUEST, "bad request")
 
@@ -2525,6 +2633,8 @@ class App(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         try:
             self.handle_put(parsed.path)
+        except db.DatabaseConnError as exc:
+            self.error(HTTPStatus.INTERNAL_SERVER_ERROR, exc.friendly())
         except (ValueError, KeyError):
             self.error(HTTPStatus.BAD_REQUEST, "bad request")
 
@@ -2532,6 +2642,8 @@ class App(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         try:
             self.handle_delete(parsed.path)
+        except db.DatabaseConnError as exc:
+            self.error(HTTPStatus.INTERNAL_SERVER_ERROR, exc.friendly())
         except (ValueError, KeyError):
             self.error(HTTPStatus.BAD_REQUEST, "bad request")
 

@@ -198,9 +198,20 @@ def _iter_rows(row):
 
 
 def build_snapshot():
-    """Instantane JSON complet (toutes les tables) -> dict {meta, tables}."""
-    db = _db_path()
-    conn = sqlite3.connect("file:%s?mode=ro" % db, uri=True)
+    """Instantane JSON complet (toutes les tables) -> dict {meta, tables}.
+
+    Mode PostgreSQL (DATABASE_URL) : lecture a travers la couche d'acces
+    (adapter `db`) ; mode SQLite : lecture directe du fichier en lecture seule."""
+    import db as db_layer
+    if db_layer.pg_enabled():
+        import server
+        conn = server.db_conn()
+        try:
+            return db_layer.export_snapshot(conn)
+        finally:
+            conn.close()
+    db_path = _db_path()
+    conn = sqlite3.connect("file:%s?mode=ro" % db_path, uri=True)
     conn.row_factory = sqlite3.Row
     try:
         tables = [r[0] for r in conn.execute(

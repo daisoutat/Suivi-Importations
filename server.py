@@ -2535,6 +2535,18 @@ class App(BaseHTTPRequestHandler):
         except (ValueError, KeyError):
             self.error(HTTPStatus.BAD_REQUEST, "bad request")
 
+    def do_OPTIONS(self):
+        self.send_response(HTTPStatus.NO_CONTENT)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization")
+        self.send_header("Access-Control-Max-Age", "86400")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def do_HEAD(self):
+        self.do_GET()
+
 
 def main():
     init_db()
